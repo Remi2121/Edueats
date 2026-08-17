@@ -1,0 +1,29 @@
+# Datasets (too large / not source code)
+datasets/
+*.jpg
+*.jpeg
+*.png
+!docs/**/*.png
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+env/
+
+# Node
+node_modules/
+npm-debug.log*
+
+# Secrets / config
+.env
+.env.*
+*.pem
+*credentials*.json
+kaggle.json
+
+# Editor / OS
+.vscode/
+.DS_Store
+Thumbs.db

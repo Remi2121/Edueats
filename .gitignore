@@ -27,3 +27,6 @@ kaggle.json
 .vscode/
 .DS_Store
 Thumbs.db
+
+*.keras
+*.h5

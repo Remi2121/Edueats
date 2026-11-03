@@ -19,3 +19,13 @@
 .nutrient-rows{ display:flex; flex-direction:column; gap:8px; }
 .nutrient-row{ display:flex; justify-content:space-between; font-size:0.86rem; }
 .nutrient-row span:first-child{ color:var(--ink-soft); }
+
+.food-log-form{ align-items:flex-start; margin-bottom:4px; }
+.food-log-form .field{ margin-bottom:0; }
+.food-log-btn{ padding:11px 20px; border-radius:9px; white-space:nowrap; }
+
+.food-log-list{ list-style:none; margin:10px 0 0; padding:0; display:flex; flex-direction:column; gap:10px; }
+.food-log-item{ display:flex; justify-content:space-between; align-items:center; font-size:0.86rem; }
+.food-log-name{ font-weight:600; }
+.food-log-time{ color:var(--ink-soft); font-size:0.78rem; }
+.food-log-empty{ color:var(--ink-soft); font-size:0.84rem; }

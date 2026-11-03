@@ -341,7 +341,7 @@ export default function Dashboard({ student, onLogout, theme, onToggleTheme }) {
             batchSize={CHECKIN_BATCH_SIZE}
           />
 
-          {activeView === "nutrition" && <NutritionCard focused snacks={snacks} />}
+          {activeView === "nutrition" && <NutritionCard focused snacks={snacks} studentId={student.id} />}
 
           {activeView === "moodfocus" && (
             <>

@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { formatHistoryTimestamp } from "../../../data/moods";
 import "./NutritionCard.css";
 
 const API_BASE = "http://localhost:3000";
@@ -12,11 +13,17 @@ const NUTRIENT_ROWS = [
   ["Vitamin B", "vitamin_b_mg", "mg"],
 ];
 
-export default function NutritionCard({ hidden, focused, snacks }) {
+export default function NutritionCard({ hidden, focused, snacks, studentId }) {
   const [tab, setTab] = useState("recommended");
   const [selected, setSelected] = useState(null);
   const [selectedNutrients, setSelectedNutrients] = useState(null);
   const [loadError, setLoadError] = useState("");
+
+  const [foodOptions, setFoodOptions] = useState([]);
+  const [logChoice, setLogChoice] = useState("");
+  const [logHistory, setLogHistory] = useState(null);
+  const [logSaving, setLogSaving] = useState(false);
+  const [logError, setLogError] = useState("");
 
   async function selectFood(food) {
     setSelected(food);
@@ -34,6 +41,46 @@ export default function NutritionCard({ hidden, focused, snacks }) {
     }
   }
 
+  // loads the real food list + this student's real log history the first
+  // time they open the My Food Log tab
+  useEffect(() => {
+    if (tab !== "log" || !studentId || logHistory !== null) return;
+    fetch(`${API_BASE}/api/foods`)
+      .then((res) => res.json())
+      .then((names) => {
+        setFoodOptions(names);
+        setLogChoice(names[0] || "");
+      })
+      .catch(() => {});
+    fetch(`${API_BASE}/api/students/${studentId}/food-log`)
+      .then((res) => res.json())
+      .then(setLogHistory)
+      .catch(() => setLogHistory([]));
+  }, [tab, studentId, logHistory]);
+
+  async function logFood() {
+    if (!logChoice || !studentId) return;
+    setLogSaving(true);
+    setLogError("");
+    try {
+      const res = await fetch(`${API_BASE}/api/students/${studentId}/food-log`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ food_name: logChoice }),
+      });
+      if (!res.ok) {
+        setLogError("Could not log that food.");
+        return;
+      }
+      const entry = await res.json();
+      setLogHistory((prev) => [{ ...entry, logged_at: new Date().toISOString() }, ...(prev || [])]);
+    } catch {
+      setLogError("Could not reach the server.");
+    } finally {
+      setLogSaving(false);
+    }
+  }
+
   return (
     <div className={"dash-card" + (hidden ? " hide" : "") + (focused ? " focused" : "")}>
       <h2 className="heading-font">My Nutrition</h2>
@@ -47,9 +94,36 @@ export default function NutritionCard({ hidden, focused, snacks }) {
       </div>
 
       {tab === "log" ? (
-        <p className="section-label" style={{ textTransform: "none", letterSpacing: "normal", marginTop: 14 }}>
-          Food logging isn't built yet — this tab is a placeholder for a future update.
-        </p>
+        <>
+          <p className="section-label" style={{ marginTop: 14 }}>Log a Food You Ate</p>
+          <div className="field-row food-log-form">
+            <div className="field">
+              <select value={logChoice} onChange={(e) => setLogChoice(e.target.value)}>
+                {foodOptions.map((name) => (
+                  <option key={name} value={name}>{name}</option>
+                ))}
+              </select>
+            </div>
+            <button className="btn btn-primary food-log-btn" type="button" onClick={logFood} disabled={logSaving || !logChoice}>
+              {logSaving ? "Logging…" : "Log it"}
+            </button>
+          </div>
+          {logError && <p className="settings-row-hint">{logError}</p>}
+
+          <p className="section-label">Recent Food Log</p>
+          <ul className="food-log-list">
+            {logHistory === null && <li className="food-log-empty">Loading…</li>}
+            {logHistory && logHistory.length === 0 && (
+              <li className="food-log-empty">Nothing logged yet — pick a food above and log it.</li>
+            )}
+            {logHistory && logHistory.map((entry) => (
+              <li key={entry.id} className="food-log-item">
+                <span className="food-log-name">{entry.food_name}</span>
+                <span className="food-log-time mono">{formatHistoryTimestamp(entry.logged_at)}</span>
+              </li>
+            ))}
+          </ul>
+        </>
       ) : (
         <>
           <p className="section-label" style={{ marginTop: 14 }}>Today's Food Recommendation</p>

@@ -75,3 +75,13 @@ CREATE TABLE IF NOT EXISTS posture_alerts (
     sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (posture_check_id) REFERENCES posture_checks(id)
 );
+
+-- one row per food a student actually logs as eaten (separate from
+-- food_recommendations, which is what the rule engine suggested)
+CREATE TABLE IF NOT EXISTS food_log (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    student_id INT NOT NULL,
+    food_name VARCHAR(100) NOT NULL,
+    logged_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (student_id) REFERENCES students(id)
+);

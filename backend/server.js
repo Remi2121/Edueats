@@ -295,6 +295,34 @@ app.get("/api/foods/:name", (req, res) => {
   res.json(food);
 });
 
+// every real food name the rule engine knows about, for the My Food Log picker
+app.get("/api/foods", (req, res) => {
+  res.json(Object.keys(foodNutrients));
+});
+
+// logs one food a student actually ate (separate from food_recommendations,
+// which is what the rule engine suggested — this is what they really logged)
+app.post("/api/students/:id/food-log", async (req, res) => {
+  const { food_name } = req.body;
+  if (!foodNutrients[food_name]) {
+    return res.status(400).json({ error: "Unknown food" });
+  }
+  const [result] = await pool.query(
+    "INSERT INTO food_log (student_id, food_name) VALUES (?, ?)",
+    [req.params.id, food_name]
+  );
+  res.json({ id: result.insertId, food_name });
+});
+
+// a student's real logged-food history, newest first
+app.get("/api/students/:id/food-log", async (req, res) => {
+  const [rows] = await pool.query(
+    "SELECT id, food_name, logged_at FROM food_log WHERE student_id = ? ORDER BY logged_at DESC",
+    [req.params.id]
+  );
+  res.json(rows);
+});
+
 // runs a check-in photo through the CNN + rule engine, saves the result, returns it
 app.post("/api/checkin", upload.single("photo"), async (req, res) => {
   const { student_id, session_id } = req.body;

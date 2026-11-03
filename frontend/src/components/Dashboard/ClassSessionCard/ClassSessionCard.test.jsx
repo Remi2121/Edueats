@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { act, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import ClassSessionCard from "./ClassSessionCard";
@@ -49,7 +49,7 @@ describe("ClassSessionCard", () => {
   it("shows the live session view with the subject name when running", () => {
     render(<ClassSessionCard hidden={false} session={running} onStart={() => {}} onStop={() => {}} onCheckIn={() => {}} />);
     expect(screen.getByText("● Live")).toBeInTheDocument();
-    expect(screen.getByText(/Study Timer — Mathematics/)).toBeInTheDocument();
+    expect(screen.getByText(/Study Timer — 🧮 Mathematics/)).toBeInTheDocument();
   });
 
   it("calls onStop when the stop control is clicked", async () => {
@@ -66,53 +66,61 @@ describe("ClassSessionCard", () => {
     expect(screen.getByLabelText("Resume")).toBeInTheDocument();
   });
 
-  it("shows a camera error and disables Check In Again when the camera is denied", async () => {
+  it("shows a camera error and disables Test Check-In Now when the camera is denied", async () => {
     vi.stubGlobal("navigator", {
       ...navigator,
       mediaDevices: { getUserMedia: vi.fn().mockRejectedValue(new Error("denied")) },
     });
     render(<ClassSessionCard hidden={false} session={running} onStart={() => {}} onStop={() => {}} onCheckIn={() => {}} />);
     expect(await screen.findByText(/camera access denied/i)).toBeInTheDocument();
-    expect(screen.getByText("Check In Again")).toBeDisabled();
+    expect(screen.getByText("⚡ Test Check-In Now")).toBeDisabled();
   });
 
   it("does not auto check-in right away when the real 15-minute interval is in effect", async () => {
-    // session={running} directly, without going through handleStart, means
-    // checkinIntervalSeconds stays at its default (the real 15 minutes) —
-    // it should NOT fire almost immediately like the old behavior did.
     const onCheckIn = vi.fn();
     render(<ClassSessionCard hidden={false} session={running} onStart={() => {}} onStop={() => {}} onCheckIn={onCheckIn} />);
     await new Promise((r) => setTimeout(r, 300));
     expect(onCheckIn).not.toHaveBeenCalled();
   });
 
-  it("repeats a check-in automatically at the testing-override interval, without needing a click", async () => {
-    const onCheckIn = vi.fn();
-    const onStart = vi.fn();
-    const { rerender } = render(
-      <ClassSessionCard hidden={false} session={notRunning} onStart={onStart} onStop={() => {}} onCheckIn={onCheckIn} />
-    );
+  it("repeats a check-in automatically every real 15 minutes, without needing a click", async () => {
+    // Only fake setInterval/clearInterval (what the check-in cadence uses) —
+    // faking requestAnimationFrame too would also stall the posture effect.
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+    try {
+      const onCheckIn = vi.fn();
+      render(<ClassSessionCard hidden={false} session={running} onStart={() => {}} onStop={() => {}} onCheckIn={onCheckIn} />);
 
-    await userEvent.type(screen.getByLabelText(/check-in interval/i), "1");
-    await userEvent.click(screen.getByText("Start Study Session"));
-    expect(onStart).toHaveBeenCalled();
+      // let the mocked getUserMedia promise resolve and the effect run
+      await act(() => vi.advanceTimersByTimeAsync(0));
 
-    // Mirrors what Dashboard would do once the session actually starts.
-    rerender(
-      <ClassSessionCard hidden={false} session={running} onStart={onStart} onStop={() => {}} onCheckIn={onCheckIn} />
-    );
+      await act(() => vi.advanceTimersByTimeAsync(15 * 60 * 1000));
+      expect(onCheckIn).toHaveBeenCalledTimes(1);
 
-    await waitFor(() => expect(onCheckIn.mock.calls.length).toBeGreaterThanOrEqual(2), { timeout: 5000 });
+      await act(() => vi.advanceTimersByTimeAsync(15 * 60 * 1000));
+      expect(onCheckIn).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
-  it("clicking Check In Again also captures and sends a frame", async () => {
-    const onCheckIn = vi.fn();
-    render(<ClassSessionCard hidden={false} session={running} onStart={() => {}} onStop={() => {}} onCheckIn={onCheckIn} />);
-    await userEvent.click(screen.getByText("Check In Again"));
-    expect(onCheckIn).toHaveBeenCalled();
+  it("clicking Test Check-In Now captures and sends a frame right away, no interval wait", async () => {
+    const onTestCheckIn = vi.fn();
+    render(
+      <ClassSessionCard
+        hidden={false}
+        session={running}
+        onStart={() => {}}
+        onStop={() => {}}
+        onCheckIn={() => {}}
+        onTestCheckIn={onTestCheckIn}
+      />
+    );
+    await userEvent.click(screen.getByText("⚡ Test Check-In Now"));
+    expect(onTestCheckIn).toHaveBeenCalled();
   });
 
-  it("shows the checking-in state while a check-in is in progress", () => {
+  it("shows the checking-in state in the Detected Mood panel while an automatic check-in is in progress", () => {
     render(
       <ClassSessionCard
         hidden={false}
@@ -123,8 +131,24 @@ describe("ClassSessionCard", () => {
         checkingIn={true}
       />
     );
-    expect(screen.getByText("Checking in...")).toBeInTheDocument();
-    expect(screen.getByText("Checking in...")).toBeDisabled();
+    // "Detecting..." shows for both mood and posture until each resolves —
+    // both appearing is correct, not a duplicate bug.
+    expect(screen.getAllByText("Detecting...").length).toBeGreaterThan(0);
+  });
+
+  it("shows the Testing… label and disables the button while a test check-in is in progress", () => {
+    render(
+      <ClassSessionCard
+        hidden={false}
+        session={running}
+        onStart={() => {}}
+        onStop={() => {}}
+        onCheckIn={() => {}}
+        testCheckingIn={true}
+      />
+    );
+    expect(screen.getByText("Testing…")).toBeInTheDocument();
+    expect(screen.getByText("Testing…")).toBeDisabled();
   });
 
   it("shows how many readings have been collected toward the combined result", () => {
@@ -176,5 +200,55 @@ describe("ClassSessionCard", () => {
     expect(screen.getAllByText(/Happy/).length).toBeGreaterThan(0);
     expect(screen.getByText("Apple slices")).toBeInTheDocument();
     expect(screen.getByText("Plain yogurt")).toBeInTheDocument();
+  });
+
+  it("shows the real pipeline stages live as they stream in from a test check-in", () => {
+    render(
+      <ClassSessionCard
+        hidden={false}
+        session={running}
+        onStart={() => {}}
+        onStop={() => {}}
+        onCheckIn={() => {}}
+        testCheckingIn={true}
+        pipelineLog={["Backend received the photo, starting mood detection", "Face detected, cropped to just the face"]}
+      />
+    );
+    expect(screen.getByText("Backend received the photo, starting mood detection")).toBeInTheDocument();
+    expect(screen.getByText("Face detected, cropped to just the face")).toBeInTheDocument();
+  });
+
+  it("shows the test check-in's own result, separately from the automatic result", () => {
+    const testResult = {
+      mood: { name: "Neutral", emoji: "😐", bg: "#E5E9EC", ink: "#44535C" },
+      foods: ["Apple", "Carrot"],
+    };
+    render(
+      <ClassSessionCard
+        hidden={false}
+        session={running}
+        onStart={() => {}}
+        onStop={() => {}}
+        onCheckIn={() => {}}
+        testResult={testResult}
+      />
+    );
+    expect(screen.getByText(/Neutral detected/)).toBeInTheDocument();
+    expect(screen.getByText("Apple")).toBeInTheDocument();
+    expect(screen.getByText("Carrot")).toBeInTheDocument();
+  });
+
+  it("shows a test check-in error separately from the automatic flow's error", () => {
+    render(
+      <ClassSessionCard
+        hidden={false}
+        session={running}
+        onStart={() => {}}
+        onStop={() => {}}
+        onCheckIn={() => {}}
+        testError="Could not reach the server."
+      />
+    );
+    expect(screen.getByText("Could not reach the server.")).toBeInTheDocument();
   });
 });

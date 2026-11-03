@@ -59,6 +59,13 @@ export default function Dashboard({ student, onLogout, theme, onToggleTheme }) {
   const [pendingBatch, setPendingBatch] = useState([]);
   const [postureAlerts, setPostureAlerts] = useState([]);
   const [pendingPostureBatch, setPendingPostureBatch] = useState([]);
+  // Manual "Test Check-In" — a single real check-in revealed immediately
+  // (not folded into the 3-reading batch above), with the real pipeline
+  // progress shown live as it happens.
+  const [testCheckingIn, setTestCheckingIn] = useState(false);
+  const [pipelineLog, setPipelineLog] = useState([]);
+  const [testResult, setTestResult] = useState(null);
+  const [testError, setTestError] = useState("");
 
   // Re-fetches real per-subject focus scores and today's real study minutes
   // from the backend — called on load and again after every check-in reveal
@@ -127,6 +134,7 @@ export default function Dashboard({ student, onLogout, theme, onToggleTheme }) {
               mood: toMood(a.mood),
               subject: a.subject,
               time: formatHistoryTimestamp(a.sent_at),
+              foods: a.foods || [],
             }))
           );
         }
@@ -177,6 +185,40 @@ export default function Dashboard({ student, onLogout, theme, onToggleTheme }) {
     setSession({ subject: null, running: false, id: null });
   }
 
+  // Reads the real-time stream /api/checkin now sends back (Server-Sent
+  // Events) — live "stage" events as the real CNN pipeline runs, then one
+  // final "result" event with the saved mood/foods. onStage is optional —
+  // only the manual Test Check-In button needs to show each stage live.
+  async function readCheckinStream(formData, onStage) {
+    const res = await fetch(`${API_BASE}/api/checkin`, { method: "POST", body: formData });
+    if (!res.ok || !res.body) {
+      const data = await res.json().catch(() => ({}));
+      throw new Error(data.error || "Check-in failed.");
+    }
+    const reader = res.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    let result = null;
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const chunks = buffer.split("\n\n");
+      buffer = chunks.pop();
+      for (const raw of chunks) {
+        const match = raw.match(/^event: (\S+)\ndata: (.+)$/s);
+        if (!match) continue;
+        const [, eventName, dataStr] = match;
+        const payload = JSON.parse(dataStr);
+        if (eventName === "stage" && onStage) onStage(payload.message);
+        else if (eventName === "result") result = payload;
+        else if (eventName === "error") throw new Error(payload.error || "Check-in failed.");
+      }
+    }
+    if (!result) throw new Error("Check-in failed.");
+    return result;
+  }
+
   // Sends one captured frame to the real CNN + rule-engine endpoint and
   // applies whatever mood/foods it actually returns.
   async function handleCheckIn(photoBlob) {
@@ -193,12 +235,7 @@ export default function Dashboard({ student, onLogout, theme, onToggleTheme }) {
       formData.append("student_id", student.id);
       if (session.id) formData.append("session_id", session.id);
 
-      const res = await fetch(`${API_BASE}/api/checkin`, { method: "POST", body: formData });
-      const data = await res.json();
-      if (!res.ok) {
-        setCheckinError(data.error || "Check-in failed.");
-        return;
-      }
+      const data = await readCheckinStream(formData);
 
       const mood = MOODS.find((m) => m.name.toLowerCase() === String(data.mood).toLowerCase()) || MOODS[0];
       const foods = data.foods && data.foods.length ? data.foods : mood.snacks;
@@ -238,13 +275,60 @@ export default function Dashboard({ student, onLogout, theme, onToggleTheme }) {
       refreshFocusAndStudyTime();
 
       if (winningEntry.mood.concerning) {
-        setAlerts((prev) => [{ mood: winningEntry.mood, subject: session.subject, time: now }, ...prev]);
-        notify("EduEats — Mood Alert", `${winningEntry.mood.name} detected during ${session.subject}`);
+        setAlerts((prev) => [{ mood: winningEntry.mood, subject: session.subject, time: now, foods: winningEntry.foods }, ...prev]);
+        const foodList = winningEntry.foods.slice(0, 3).join(", ");
+        notify(
+          "EduEats — Mood Alert",
+          `${winningEntry.mood.name} detected during ${session.subject}${foodList ? ` — suggested: ${foodList}` : ""}`
+        );
       }
-    } catch {
-      setCheckinError("Could not reach the server. Is the backend running?");
+    } catch (err) {
+      setCheckinError(err.message || "Could not reach the server. Is the backend running?");
     } finally {
       setCheckingIn(false);
+    }
+  }
+
+  // Manual "Test Check-In" — same real endpoint and database save as the
+  // automatic flow above, but reveals its own result immediately instead of
+  // silently joining the 3-reading batch, and shows the real pipeline
+  // progress live as it streams in. Deliberately does NOT create a parent
+  // alert even for a concerning mood — alerts are reserved for a sustained
+  // 3-reading majority, not one manual test click.
+  async function handleTestCheckIn(photoBlob) {
+    setTestError("");
+    if (!student.id) {
+      setTestError("Sign up with email & password to use real check-in (Google/Apple demo accounts aren't saved).");
+      return;
+    }
+
+    setTestCheckingIn(true);
+    setPipelineLog([]);
+    setTestResult(null);
+    try {
+      const formData = new FormData();
+      formData.append("photo", photoBlob, "checkin.jpg");
+      formData.append("student_id", student.id);
+      if (session.id) formData.append("session_id", session.id);
+
+      const data = await readCheckinStream(formData, (message) => {
+        setPipelineLog((prev) => [...prev, message]);
+      });
+
+      const mood = MOODS.find((m) => m.name.toLowerCase() === String(data.mood).toLowerCase()) || MOODS[0];
+      const foods = data.foods && data.foods.length ? data.foods : mood.snacks;
+      setTestResult({ mood, foods });
+
+      const now = timeNow();
+      setLatestMood(mood);
+      setMoodUpdatedLabel(`Last updated today ${now}`);
+      setTimeline((prev) => [...prev, { mood, when: `today ${now}` }]);
+      setSnacks(foods);
+      refreshFocusAndStudyTime();
+    } catch (err) {
+      setTestError(err.message || "Could not reach the server.");
+    } finally {
+      setTestCheckingIn(false);
     }
   }
 
@@ -344,15 +428,20 @@ export default function Dashboard({ student, onLogout, theme, onToggleTheme }) {
             result={lastResult}
             batchCount={pendingBatch.length}
             batchSize={CHECKIN_BATCH_SIZE}
+            onTestCheckIn={handleTestCheckIn}
+            testCheckingIn={testCheckingIn}
+            pipelineLog={pipelineLog}
+            testResult={testResult}
+            testError={testError}
           />
 
           {activeView === "nutrition" && <NutritionCard focused snacks={snacks} studentId={student.id} />}
 
           {activeView === "moodfocus" && (
             <>
-              <MoodSummaryCard timeline={timeline} />
+              <MoodSummaryCard studentId={student.id} />
               <MoodTrendCard entries={timeline} />
-              <MoodHistoryCard focused latestMood={latestMood} moodUpdatedLabel={moodUpdatedLabel} timeline={timeline} />
+              <MoodHistoryCard focused studentId={student.id} />
               <AlertsCard focused alerts={alerts} />
               <PostureAlertsCard alerts={postureAlerts} />
             </>

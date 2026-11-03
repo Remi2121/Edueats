@@ -11,6 +11,7 @@ export default function AlertsCard({ hidden, focused, alerts }) {
             <span className="alert-dot" style={{ background: a.mood.bg }} />
             <span className="alert-text">
               {a.mood.name} detected{a.subject ? ` during ${a.subject}` : ""} — parent notified
+              {a.foods && a.foods.length > 0 ? ` (suggested: ${a.foods.slice(0, 3).join(", ")})` : ""}
             </span>
             <span className="alert-time mono">{a.time}</span>
           </li>

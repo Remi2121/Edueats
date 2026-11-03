@@ -21,4 +21,14 @@ describe("AlertsCard", () => {
     render(<AlertsCard hidden={false} alerts={[{ mood: sad, subject: null, time: "9:05 AM" }]} />);
     expect(screen.getByText("Sad detected — parent notified")).toBeInTheDocument();
   });
+
+  it("includes the real suggested foods when the alert has them", () => {
+    render(
+      <AlertsCard
+        hidden={false}
+        alerts={[{ mood: sad, subject: "Mathematics", time: "9:05 AM", foods: ["Banana", "Oats"] }]}
+      />
+    );
+    expect(screen.getByText(/\(suggested: Banana, Oats\)/)).toBeInTheDocument();
+  });
 });

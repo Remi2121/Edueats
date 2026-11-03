@@ -5,6 +5,11 @@ import "./NutritionCard.css";
 
 const API_BASE = "http://localhost:3000";
 
+// Neutral/Surprise have no nutrient rule, so the real rule engine returns
+// every food in the dataset for them (93 foods) — real data, but far too
+// many cards to usefully show at once.
+const MAX_DISPLAYED_FOODS = 10;
+
 const NUTRIENT_ROWS = [
   ["Calories", "calories", "kcal"],
   ["Fat", "fat_g", "g"],
@@ -13,6 +18,45 @@ const NUTRIENT_ROWS = [
   ["Magnesium", "magnesium_mg", "mg"],
   ["Vitamin B", "vitamin_b_mg", "mg"],
 ];
+
+// Local calendar date (YYYY-MM-DD) for a real timestamp, matching what
+// <input type="date"> itself works in — using the LOCAL date, not UTC, so a
+// check-in from this evening doesn't get filed under tomorrow for anyone
+// east of UTC.
+function localDateOf(isoString) {
+  const d = new Date(isoString);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+// Minutes since local midnight for a real timestamp — used to find which
+// real check-in is closest to a picked time-of-day.
+function minutesOfDay(isoString) {
+  const d = new Date(isoString);
+  return d.getHours() * 60 + d.getMinutes();
+}
+
+// Picks the single real entry whose actual time is closest to the "HH:MM"
+// the student picked — real check-ins land at whatever minute the camera
+// happened to fire, not on a clean grid, so this is a nearest-match, not an
+// exact one.
+function closestEntryTo(entries, hhmm) {
+  if (entries.length === 0) return [];
+  const [h, m] = hhmm.split(":").map(Number);
+  const targetMinutes = h * 60 + m;
+  let best = entries[0];
+  let bestDiff = Math.abs(minutesOfDay(best.detected_at) - targetMinutes);
+  for (const entry of entries.slice(1)) {
+    const diff = Math.abs(minutesOfDay(entry.detected_at) - targetMinutes);
+    if (diff < bestDiff) {
+      best = entry;
+      bestDiff = diff;
+    }
+  }
+  return [best];
+}
 
 export default function NutritionCard({ hidden, focused, snacks, studentId }) {
   const [tab, setTab] = useState("recommended");
@@ -25,6 +69,66 @@ export default function NutritionCard({ hidden, focused, snacks, studentId }) {
   const [logHistory, setLogHistory] = useState(null);
   const [logSaving, setLogSaving] = useState(false);
   const [logError, setLogError] = useState("");
+
+  const [history, setHistory] = useState(null);
+  const [expandedEntries, setExpandedEntries] = useState(new Set());
+  // Which past check-in's foods are currently shown — only one at a time,
+  // collapsed by default, so the tab doesn't dump every past check-in's
+  // full food list on screen at once.
+  const [openEntry, setOpenEntry] = useState(null);
+  const [selectedDate, setSelectedDate] = useState("");
+  const [selectedTime, setSelectedTime] = useState("");
+
+  // Real past check-ins (most recent first) instead of just "today's"
+  // single recommendation — each with the real mood and real foods the
+  // rule engine matched at that time. Fetches a real window of history so
+  // the date picker below has real dates to filter, not just the latest few.
+  useEffect(() => {
+    if (!studentId) {
+      setHistory([]);
+      return;
+    }
+    fetch(`${API_BASE}/api/students/${studentId}/nutrition-history?limit=50`)
+      .then((res) => res.json())
+      .then((rows) => {
+        setHistory(rows);
+        if (rows.length > 0) {
+          setSelectedDate(localDateOf(rows[0].detected_at));
+          setOpenEntry(rows[0].mood_id);
+        }
+      })
+      .catch(() => setHistory([]));
+  }, [studentId]);
+
+  const entriesForSelectedDate = (history || []).filter((e) => localDateOf(e.detected_at) === selectedDate);
+
+  // A real check-in happens at whatever time the camera caught it, not on a
+  // fixed clock grid — so "selecting a time" means finding the single real
+  // check-in closest to that time, not demanding an exact match.
+  const displayedEntries = selectedTime ? closestEntryTo(entriesForSelectedDate, selectedTime) : entriesForSelectedDate;
+
+  function handleDateChange(newDate) {
+    setSelectedDate(newDate);
+    setSelectedTime("");
+    const firstForDate = (history || []).find((e) => localDateOf(e.detected_at) === newDate);
+    setOpenEntry(firstForDate ? firstForDate.mood_id : null);
+  }
+
+  function handleTimeChange(newTime) {
+    setSelectedTime(newTime);
+    if (!newTime) return;
+    const [match] = closestEntryTo(entriesForSelectedDate, newTime);
+    setOpenEntry(match ? match.mood_id : null);
+  }
+
+  function toggleExpanded(moodId) {
+    setExpandedEntries((prev) => {
+      const next = new Set(prev);
+      if (next.has(moodId)) next.delete(moodId);
+      else next.add(moodId);
+      return next;
+    });
+  }
 
   async function selectFood(food) {
     setSelected(food);
@@ -132,24 +236,127 @@ export default function NutritionCard({ hidden, focused, snacks, studentId }) {
         </>
       ) : (
         <>
-          <p className="section-label" style={{ marginTop: 14 }}>Today's Food Recommendation</p>
-          <div className="food-cards">
-            {snacks.map((food) => (
-              <button
-                key={food}
-                className={"food-card" + (selected === food ? " selected" : "")}
-                type="button"
-                onClick={() => selectFood(food)}
-              >
-                {foodImageUrl(food) ? (
-                  <img className="food-card-img" src={foodImageUrl(food)} alt="" loading="lazy" />
-                ) : (
-                  <span className="food-card-icon">🍽️</span>
+          {history === null ? (
+            <p className="section-label" style={{ textTransform: "none", letterSpacing: "normal", marginTop: 14 }}>
+              Loading your real check-in history…
+            </p>
+          ) : history.length === 0 ? (
+            <>
+              <p className="section-label" style={{ marginTop: 14 }}>Today's Food Recommendation</p>
+              <div className="food-cards">
+                {snacks.slice(0, MAX_DISPLAYED_FOODS).map((food) => (
+                  <button
+                    key={food}
+                    className={"food-card" + (selected === food ? " selected" : "")}
+                    type="button"
+                    onClick={() => selectFood(food)}
+                  >
+                    {foodImageUrl(food) ? (
+                      <img className="food-card-img" src={foodImageUrl(food)} alt="" loading="lazy" />
+                    ) : (
+                      <span className="food-card-icon">🍽️</span>
+                    )}
+                    <span className="food-card-name">{food}</span>
+                  </button>
+                ))}
+              </div>
+            </>
+          ) : (
+            <>
+              <div className="nutrition-date-row" style={{ marginTop: 14 }}>
+                <label htmlFor="nutrition-date-input" className="section-label" style={{ margin: 0 }}>
+                  Date
+                </label>
+                <input
+                  type="date"
+                  id="nutrition-date-input"
+                  value={selectedDate}
+                  onChange={(e) => handleDateChange(e.target.value)}
+                />
+                <label htmlFor="nutrition-time-input" className="section-label" style={{ margin: 0 }}>
+                  Time
+                </label>
+                <input
+                  type="time"
+                  id="nutrition-time-input"
+                  value={selectedTime}
+                  onChange={(e) => handleTimeChange(e.target.value)}
+                  disabled={entriesForSelectedDate.length === 0}
+                />
+                {selectedTime && (
+                  <button type="button" className="nutrition-time-clear" onClick={() => handleTimeChange("")}>
+                    Clear
+                  </button>
                 )}
-                <span className="food-card-name">{food}</span>
-              </button>
-            ))}
-          </div>
+              </div>
+              {selectedTime && displayedEntries.length > 0 && (
+                <p className="section-label" style={{ textTransform: "none", letterSpacing: "normal", marginTop: -6, marginBottom: 10 }}>
+                  Closest real check-in to {selectedTime}: {formatHistoryTimestamp(displayedEntries[0].detected_at)}
+                </p>
+              )}
+              {displayedEntries.length === 0 ? (
+                <p className="section-label" style={{ textTransform: "none", letterSpacing: "normal", marginTop: 10 }}>
+                  No check-in on this date.
+                </p>
+              ) : (
+                displayedEntries.map((entry, i) => {
+              const isOpen = openEntry === entry.mood_id;
+              const expanded = expandedEntries.has(entry.mood_id);
+              const shownFoods = expanded ? entry.foods : entry.foods.slice(0, MAX_DISPLAYED_FOODS);
+              const moodLabel = entry.mood.charAt(0).toUpperCase() + entry.mood.slice(1);
+              return (
+                <div key={entry.mood_id} className="nutrition-history-entry">
+                  <button
+                    type="button"
+                    className={"nutrition-history-header" + (isOpen ? " open" : "")}
+                    style={{ marginTop: i === 0 ? 14 : 10 }}
+                    onClick={() => setOpenEntry(isOpen ? null : entry.mood_id)}
+                  >
+                    <span className="section-label" style={{ margin: 0 }}>
+                      {formatHistoryTimestamp(entry.detected_at)}
+                      {" — "}
+                      {moodLabel}
+                      {entry.subject ? ` (${entry.subject})` : ""}
+                    </span>
+                    <span className="nutrition-history-chevron">{isOpen ? "▲" : "▼"}</span>
+                  </button>
+
+                  {isOpen && (
+                    <>
+                      <div className="food-cards">
+                        {shownFoods.map((food) => (
+                          <button
+                            key={food}
+                            className={"food-card" + (selected === food ? " selected" : "")}
+                            type="button"
+                            onClick={() => selectFood(food)}
+                          >
+                            {foodImageUrl(food) ? (
+                              <img className="food-card-img" src={foodImageUrl(food)} alt="" loading="lazy" />
+                            ) : (
+                              <span className="food-card-icon">🍽️</span>
+                            )}
+                            <span className="food-card-name">{food}</span>
+                          </button>
+                        ))}
+                      </div>
+                      {entry.foods.length > MAX_DISPLAYED_FOODS && (
+                        <button
+                          type="button"
+                          className="nutrition-history-expand"
+                          onClick={() => toggleExpanded(entry.mood_id)}
+                        >
+                          {expanded ? "Show fewer" : `+${entry.foods.length - MAX_DISPLAYED_FOODS} more match this mood`}
+                        </button>
+                      )}
+                    </>
+                  )}
+                </div>
+                  );
+                })
+              )}
+            </>
+          )}
 
           {selected && (
             <div className="nutrition-details">

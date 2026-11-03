@@ -1,4 +1,4 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import NutritionCard from "./NutritionCard";
@@ -6,6 +6,9 @@ import NutritionCard from "./NutritionCard";
 function mockFetchImpl(url, options) {
   if (url.endsWith("/api/foods")) {
     return Promise.resolve({ ok: true, json: () => Promise.resolve(["Apple slices", "Banana"]) });
+  }
+  if (url.includes("/nutrition-history")) {
+    return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
   }
   if (url.includes("/food-log")) {
     if (options && options.method === "POST") {
@@ -81,5 +84,72 @@ describe("NutritionCard", () => {
     );
 
     await waitFor(() => expect(loggedNames()).toContain("Apple slices"));
+  });
+
+  it("shows the same day's real check-ins, the most recent auto-opened and the rest collapsed", async () => {
+    const manyFoods = Array.from({ length: 15 }, (_, i) => `Food ${i}`);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url) => {
+        if (url.includes("/nutrition-history")) {
+          return Promise.resolve({
+            ok: true,
+            json: () =>
+              Promise.resolve([
+                { mood_id: 2, mood: "happy", detected_at: "2026-11-03T09:00:00.000Z", subject: "Math", foods: ["Apple", "Carrot"] },
+                { mood_id: 1, mood: "neutral", detected_at: "2026-11-03T08:00:00.000Z", subject: "Science", foods: manyFoods },
+              ]),
+          });
+        }
+        return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
+      })
+    );
+    render(<NutritionCard hidden={false} snacks={[]} studentId={6} />);
+
+    // the most recent entry auto-opens, showing a real date (not "Most Recent")
+    expect(await screen.findByText(/— Happy \(Math\)/)).toBeInTheDocument();
+    expect(screen.getByText("Apple")).toBeInTheDocument();
+
+    // the earlier same-day entry's header is visible but its foods stay collapsed
+    expect(screen.getByText(/— Neutral \(Science\)/)).toBeInTheDocument();
+    expect(screen.queryByText("Food 0")).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByText(/— Neutral \(Science\)/));
+    expect(screen.getByText("Food 0")).toBeInTheDocument();
+
+    // the 15-food entry is capped to 10 with a "+5 more" expand control
+    expect(screen.getByText("+5 more match this mood")).toBeInTheDocument();
+    expect(screen.queryByText("Food 14")).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByText("+5 more match this mood"));
+    expect(screen.getByText("Food 14")).toBeInTheDocument();
+    expect(screen.getByText("Show fewer")).toBeInTheDocument();
+  });
+
+  it("switches to a different real date and shows that day's real check-ins instead", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url) => {
+        if (url.includes("/nutrition-history")) {
+          return Promise.resolve({
+            ok: true,
+            json: () =>
+              Promise.resolve([
+                { mood_id: 2, mood: "happy", detected_at: "2026-11-03T09:00:00.000Z", subject: "Math", foods: ["Apple"] },
+                { mood_id: 1, mood: "sad", detected_at: "2026-11-02T09:00:00.000Z", subject: "Science", foods: ["Banana"] },
+              ]),
+          });
+        }
+        return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
+      })
+    );
+    render(<NutritionCard hidden={false} snacks={[]} studentId={6} />);
+    await screen.findByText(/— Happy \(Math\)/);
+    expect(screen.queryByText(/— Sad \(Science\)/)).not.toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Date"), { target: { value: "2026-11-02" } });
+
+    expect(await screen.findByText(/— Sad \(Science\)/)).toBeInTheDocument();
+    expect(screen.queryByText(/— Happy \(Math\)/)).not.toBeInTheDocument();
   });
 });

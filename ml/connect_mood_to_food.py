@@ -19,8 +19,10 @@ if __name__ == "__main__":
     foods = recommend_foods(mood)
 
     if json_mode:
-        # structured output for the backend to parse, instead of the human-readable text below
-        print(json.dumps({"mood": mood, "foods": [food["food_name"] for food in foods]}))
+        # a "RESULT_JSON:" prefix so the backend can pick this one line out of
+        # the live stream of progress lines predict.py already prints above,
+        # no matter how those lines get buffered/batched on the way there
+        print("RESULT_JSON:" + json.dumps({"mood": mood, "foods": [food["food_name"] for food in foods]}))
     else:
         print(f"\nDetected mood: {mood}")
         if foods:

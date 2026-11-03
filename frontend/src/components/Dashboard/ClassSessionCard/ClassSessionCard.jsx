@@ -11,9 +11,42 @@ function formatTime(totalSeconds) {
   return String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0");
 }
 
+// A small visual icon for the subject the student typed in — cosmetic only,
+// not data from anywhere, so a sensible default (📚) covers any subject name
+// that isn't in this list rather than showing nothing.
+const SUBJECT_ICONS = {
+  math: "🧮",
+  mathematics: "🧮",
+  science: "🔬",
+  physics: "⚛️",
+  chemistry: "🧪",
+  biology: "🧬",
+  english: "📖",
+  history: "🏛️",
+  geography: "🌍",
+  art: "🎨",
+  music: "🎵",
+  "computer science": "💻",
+  computing: "💻",
+  ict: "💻",
+  economics: "📈",
+  "pe": "🏃",
+  "physical education": "🏃",
+};
+function subjectIcon(subject) {
+  if (!subject) return "📚";
+  return SUBJECT_ICONS[subject.trim().toLowerCase()] || "📚";
+}
+
 // Real behavior: one automatic mood check-in every 15 minutes during a
 // class session (matches the project proposal's periodic check-in design).
 const PRODUCTION_CHECKIN_INTERVAL_SECONDS = 15 * 60;
+
+// Neutral/Surprise have no nutrient rule, so the real rule engine returns
+// every food in the dataset for them (93 foods) — real data, but far too
+// many chips to usefully show at once. Capped to the first 10 for display
+// only; the full real result is still what gets saved to the database.
+const MAX_DISPLAYED_FOODS = 10;
 
 // MediaPipe Pose landmark indices used for the posture check below.
 const LEFT_SHOULDER = 11, RIGHT_SHOULDER = 12, LEFT_EAR = 7, RIGHT_EAR = 8;
@@ -48,14 +81,14 @@ export default function ClassSessionCard({
   result,
   batchCount = 0,
   batchSize = 1,
+  onTestCheckIn,
+  testCheckingIn,
+  pipelineLog = [],
+  testResult,
+  testError,
 }) {
   const [subjectInput, setSubjectInput] = useState("");
   const [duration, setDuration] = useState("60");
-  // TESTING OVERRIDE — lets us test without waiting the real 15 minutes.
-  // Remove this field (and just use PRODUCTION_CHECKIN_INTERVAL_SECONDS
-  // directly) before final submission.
-  const [testIntervalInput, setTestIntervalInput] = useState("");
-  const [checkinIntervalSeconds, setCheckinIntervalSeconds] = useState(PRODUCTION_CHECKIN_INTERVAL_SECONDS);
   const [secondsLeft, setSecondsLeft] = useState(0);
   // Only pauses the visible session-duration countdown below — the camera
   // and automatic check-ins keep running either way, same as a real short
@@ -105,12 +138,13 @@ export default function ClassSessionCard({
   // Turns the webcam on for the live session view and off again when the
   // session stops or the card unmounts — the browser keeps the camera light
   // on for as long as a stream is open, so cleanup matters. Once the camera
-  // is ready, it repeats a check-in automatically every
-  // `checkinIntervalSeconds` (15 real minutes in production, or the
-  // TESTING OVERRIDE value above) — the student never has to click
-  // anything for check-ins to happen. A second, purely visual countdown
-  // (secondsUntilCheckin) tracks roughly the same cadence for the "Next
-  // Break" progress bar below.
+  // is ready, it repeats a check-in automatically every real 15 minutes
+  // (PRODUCTION_CHECKIN_INTERVAL_SECONDS) — the student never has to click
+  // anything for the automatic monitoring to happen. (For a fast, on-demand
+  // check instead of waiting, use the "Test Check-In" button below — it
+  // doesn't wait for this interval at all.) A second, purely visual
+  // countdown (secondsUntilCheckin) tracks the same cadence for the
+  // "Next check-in" progress bar below.
   useEffect(() => {
     if (!session.running) return;
     let cancelled = false;
@@ -135,9 +169,9 @@ export default function ClassSessionCard({
         streamRef.current = stream;
         if (videoRef.current) videoRef.current.srcObject = stream;
 
-        setSecondsUntilCheckin(checkinIntervalSeconds);
+        setSecondsUntilCheckin(PRODUCTION_CHECKIN_INTERVAL_SECONDS);
         displayTimer = setInterval(() => {
-          setSecondsUntilCheckin((prev) => (prev <= 1 ? checkinIntervalSeconds : prev - 1));
+          setSecondsUntilCheckin((prev) => (prev <= 1 ? PRODUCTION_CHECKIN_INTERVAL_SECONDS : prev - 1));
         }, 1000);
 
         checkinTimer = setInterval(() => {
@@ -147,7 +181,7 @@ export default function ClassSessionCard({
           // Posture is sampled on the same cadence as mood — reports
           // whatever the live MediaPipe reading currently is.
           if (!cancelled && postureStatusRef.current) onPostureCheckRef.current(postureStatusRef.current);
-        }, checkinIntervalSeconds * 1000);
+        }, PRODUCTION_CHECKIN_INTERVAL_SECONDS * 1000);
       })
       .catch(() => setCameraError("Camera access denied or unavailable."));
 
@@ -160,7 +194,7 @@ export default function ClassSessionCard({
         streamRef.current = null;
       }
     };
-  }, [session.running, checkinIntervalSeconds]);
+  }, [session.running]);
 
   // Runs MediaPipe Pose directly in the browser on the same live video feed
   // (true continuous monitoring, per the proposal — not limited to the
@@ -221,15 +255,13 @@ export default function ClassSessionCard({
     setSecondsLeft(parseInt(duration, 10) * 60);
     setPaused(false);
     setPostureStatus(null);
-    // TESTING OVERRIDE — see the field/state declarations above.
-    const testSeconds = parseInt(testIntervalInput, 10);
-    setCheckinIntervalSeconds(testSeconds > 0 ? testSeconds : PRODUCTION_CHECKIN_INTERVAL_SECONDS);
     onStart(name, parseInt(duration, 10));
   }
 
-  // Grabs one still frame from the live video feed and hands it to the
-  // backend's /api/checkin endpoint as a JPEG blob.
-  function handleCheckIn() {
+  // Grabs one still frame from the live video feed and hands it off as a
+  // JPEG blob to whichever real check-in flow called this (the automatic
+  // batched one, or the manual test one below).
+  function captureFrame(onBlob) {
     const video = videoRef.current;
     const canvas = canvasRef.current;
     if (!video || !canvas || !streamRef.current) return;
@@ -237,14 +269,47 @@ export default function ClassSessionCard({
     canvas.height = video.videoHeight || 240;
     canvas.getContext("2d").drawImage(video, 0, 0, canvas.width, canvas.height);
     canvas.toBlob((blob) => {
-      if (blob) onCheckIn(blob);
+      if (blob) onBlob(blob);
     }, "image/jpeg", 0.9);
+  }
+
+  function handleCheckIn() {
+    captureFrame(onCheckIn);
   }
   handleCheckInRef.current = handleCheckIn;
 
-  const breakProgressPct = checkinIntervalSeconds
-    ? Math.round(((checkinIntervalSeconds - secondsUntilCheckin) / checkinIntervalSeconds) * 100)
-    : 0;
+  // Instant, on-demand check-in — captures a frame right now and sends it
+  // to the real backend/ML pipeline, same as the automatic flow, but shows
+  // the real progress live and reveals its own result immediately instead
+  // of waiting on the 15-minute interval or the 3-reading batch.
+  function handleTestCheckIn() {
+    captureFrame(onTestCheckIn);
+  }
+
+  // Renders at most MAX_DISPLAYED_FOODS chips plus a real count of how many
+  // more real foods matched, rather than overflowing the card with all of
+  // them (e.g. 93 for a mood with no nutrient rule).
+  function renderFoodChips(foods) {
+    const shown = foods.slice(0, MAX_DISPLAYED_FOODS);
+    const remaining = foods.length - shown.length;
+    return (
+      <>
+        <div className="result-foods">
+          {shown.map((food) => (
+            <span key={food} className="result-food-chip">
+              {foodImageUrl(food) && <img className="result-food-img" src={foodImageUrl(food)} alt="" loading="lazy" />}
+              {food}
+            </span>
+          ))}
+        </div>
+        {remaining > 0 && <p className="cam-caption" style={{ marginTop: 6 }}>+{remaining} more match this mood</p>}
+      </>
+    );
+  }
+
+  const breakProgressPct = Math.round(
+    ((PRODUCTION_CHECKIN_INTERVAL_SECONDS - secondsUntilCheckin) / PRODUCTION_CHECKIN_INTERVAL_SECONDS) * 100
+  );
 
   return (
     <div className={"dash-card session-card" + (hidden ? " hide" : "")}>
@@ -254,7 +319,7 @@ export default function ClassSessionCard({
         <div>
           <div className="field-row">
             <div className="field">
-              <label htmlFor="subject-input">Subject</label>
+              <label htmlFor="subject-input">Subject {subjectInput && <span className="subject-preview-icon">{subjectIcon(subjectInput)}</span>}</label>
               <input
                 type="text"
                 id="subject-input"
@@ -271,20 +336,6 @@ export default function ClassSessionCard({
                 <option value="60">60 min</option>
                 <option value="90">90 min</option>
               </select>
-            </div>
-          </div>
-          {/* TESTING OVERRIDE — remove this field before final submission. */}
-          <div className="field-row">
-            <div className="field">
-              <label htmlFor="test-interval-input">Check-in interval (sec) — testing only</label>
-              <input
-                type="number"
-                id="test-interval-input"
-                placeholder="blank = real 15 min"
-                min="1"
-                value={testIntervalInput}
-                onChange={(e) => setTestIntervalInput(e.target.value)}
-              />
             </div>
           </div>
           <button className="btn btn-primary heading-font" type="button" onClick={handleStart}>
@@ -338,7 +389,9 @@ export default function ClassSessionCard({
 
           <div className="study-timer-row">
             <div>
-              <p className="section-label" style={{ marginBottom: 4 }}>Study Timer — {session.subject}</p>
+              <p className="section-label" style={{ marginBottom: 4 }}>
+                Study Timer — {subjectIcon(session.subject)} {session.subject}
+              </p>
               <p className="study-timer-display mono">{formatTime(secondsLeft)}</p>
               <p className="cam-caption" style={{ margin: "2px 0 0" }}>{paused ? "Paused" : "Stay focused!"}</p>
             </div>
@@ -368,25 +421,48 @@ export default function ClassSessionCard({
               <div className="result-mood-chip" style={{ background: result.mood.bg, color: result.mood.ink }}>
                 {result.mood.emoji} {result.mood.name} detected
               </div>
-              <div className="result-foods">
-                {result.foods.map((food) => (
-                  <span key={food} className="result-food-chip">
-                    {foodImageUrl(food) && <img className="result-food-img" src={foodImageUrl(food)} alt="" loading="lazy" />}
-                    {food}
-                  </span>
-                ))}
-              </div>
+              {renderFoodChips(result.foods)}
             </div>
           )}
 
-          <button
-            className="btn-ghost"
-            type="button"
-            onClick={handleCheckIn}
-            disabled={checkingIn || !!cameraError}
-          >
-            {checkingIn ? "Checking in..." : "Check In Again"}
-          </button>
+          <div className="test-checkin-block">
+            <button
+              className="btn btn-primary"
+              type="button"
+              onClick={handleTestCheckIn}
+              disabled={testCheckingIn || !!cameraError}
+            >
+              {testCheckingIn ? "Testing…" : "⚡ Test Check-In Now"}
+            </button>
+            <p className="cam-caption" style={{ margin: "6px 0 0" }}>
+              Runs the real pipeline right now and shows each real step below — no waiting for the 15-minute interval.
+            </p>
+
+            {pipelineLog.length > 0 && (
+              <ul className="pipeline-log">
+                {pipelineLog.map((msg, i) => (
+                  <li key={i} className={i === pipelineLog.length - 1 && testCheckingIn ? "pipeline-log-current" : ""}>
+                    {msg}
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            {testError && <p className="cam-caption" style={{ color: "#d64545" }}>{testError}</p>}
+
+            {testResult && !testCheckingIn && (
+              <div className="checkin-result">
+                <div className="result-mood-chip" style={{ background: testResult.mood.bg, color: testResult.mood.ink }}>
+                  {testResult.mood.emoji} {testResult.mood.name} detected
+                </div>
+                {renderFoodChips(testResult.foods)}
+              </div>
+            )}
+
+            <button className="btn-ghost" type="button" onClick={onStop} style={{ color: "#D6453B", marginTop: 10 }}>
+              ⏹️ Stop Class Session
+            </button>
+          </div>
         </div>
       )}
     </div>

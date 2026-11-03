@@ -4,6 +4,7 @@ const VALENCE_MIN = -5;
 const VALENCE_MAX = 6;
 const CHART_W = 280;
 const CHART_H = 90;
+const TOP_PAD = 16; // room above the highest possible dot for its mood emoji label
 
 function yFor(valence) {
   const t = (valence - VALENCE_MIN) / (VALENCE_MAX - VALENCE_MIN);
@@ -33,17 +34,26 @@ export default function MoodTrendCard({ entries }) {
   return (
     <div className="dash-card">
       <h2 className="heading-font">Today's Mood Trend</h2>
-      <svg className="trend-chart" viewBox={`0 0 ${CHART_W} ${CHART_H + 16}`} preserveAspectRatio="none">
-        <path className="trend-fill" d={fillPath} />
-        <path className="trend-line" d={linePath} />
-        {points.map(([x, y], i) => (
-          <circle key={i} className="trend-dot" cx={x} cy={y} r="3" />
-        ))}
-        {recent.map((e, i) => (
-          <text key={i} className="trend-axis" x={i * step} y={CHART_H + 13} textAnchor="middle">
-            {e.when.split(" ").slice(-2).join(" ")}
-          </text>
-        ))}
+      <svg className="trend-chart" viewBox={`0 0 ${CHART_W} ${CHART_H + 16 + TOP_PAD}`} preserveAspectRatio="none">
+        <g transform={`translate(0, ${TOP_PAD})`}>
+          <path className="trend-fill" d={fillPath} />
+          <path className="trend-line" d={linePath} />
+          {points.map(([x, y], i) => (
+            <g key={i}>
+              <circle className="trend-dot" cx={x} cy={y} r="3">
+                <title>{recent[i].mood.name}</title>
+              </circle>
+              <text className="trend-point-emoji" x={x} y={y - 6} textAnchor="middle">
+                {recent[i].mood.emoji}
+              </text>
+            </g>
+          ))}
+          {recent.map((e, i) => (
+            <text key={i} className="trend-axis" x={i * step} y={CHART_H + 13} textAnchor="middle">
+              {e.when.split(" ").slice(-2).join(" ")}
+            </text>
+          ))}
+        </g>
       </svg>
     </div>
   );

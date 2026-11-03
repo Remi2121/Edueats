@@ -1,8 +1,17 @@
-.mood-summary-chips{ display:flex; flex-wrap:wrap; gap:10px; }
-.mood-summary-chip{
-  display:flex; flex-direction:column; align-items:center; gap:2px;
-  min-width:70px; padding:12px 10px; border-radius:12px; font-size:0.78rem;
+.mood-week-tabs{ display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; }
+.mood-week-tab{
+  border:1.5px solid var(--line); background:var(--surface); color:var(--ink-soft);
+  font-family:inherit; font-size:0.8rem; font-weight:600; padding:7px 14px; border-radius:999px; cursor:pointer;
 }
-.mood-summary-chip span{ font-size:1.1rem; }
-.mood-summary-name{ font-size:0.74rem !important; font-weight:600; }
-.mood-summary-pct{ font-size:0.9rem !important; font-weight:700; }
+.mood-week-tab.active{ background:var(--accent); border-color:var(--accent); color:var(--accent-contrast); }
+.mood-week-tab.empty{ opacity:0.5; }
+
+.mood-week-detail{ margin-top:14px; padding-top:12px; border-top:1px dashed var(--line); }
+.mood-week-foods{ display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; }
+.mood-week-food-chip{
+  display:inline-flex; align-items:center; gap:5px;
+  background:var(--surface-alt); color:var(--ink); font-size:0.76rem;
+  padding:4px 10px 4px 4px; border-radius:999px;
+}
+.mood-week-food-chip img{ width:18px; height:18px; border-radius:50%; object-fit:cover; }
+.mood-week-food-more{ font-size:0.76rem; color:var(--ink-soft); align-self:center; }

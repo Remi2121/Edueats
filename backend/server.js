@@ -1,7 +1,7 @@
 require("dotenv").config();
 const path = require("path");
 const fs = require("fs");
-const { execFile } = require("child_process");
+const { spawn } = require("child_process");
 const express = require("express");
 const cors = require("cors");
 const bcrypt = require("bcryptjs");
@@ -63,6 +63,30 @@ fs.readFileSync(NUTRITION_CSV_PATH, "utf8")
       vitamin_b_mg: Number(vitamin_b_mg),
     };
   });
+
+// Same real mood -> nutrient rule table as ml/rule_engine.py (kept in sync
+// by hand — see that file for the citations behind each direction). Used
+// here only to explain WHY a food matches a mood, not to recompute the
+// recommendation itself (that's still the Python rule engine's job).
+const NUTRIENT_KEYS = ["calories", "fat_g", "sugar_g", "water_ml", "magnesium_mg", "vitamin_b_mg"];
+const MOOD_RULES = {
+  sad: ["high_magnesium_mg", "high_vitamin_b_mg"],
+  angry: ["low_sugar_g", "high_calories"],
+  fear: ["high_magnesium_mg"],
+  happy: ["high_water_ml", "low_fat_g"],
+  disgust: ["low_fat_g", "low_calories"],
+  neutral: [],
+  surprise: [],
+};
+
+// Same median-per-nutrient calculation as rule_engine.py's compute_medians()
+// — what "high"/"low" actually means in MOOD_RULES above.
+const foodMedians = {};
+NUTRIENT_KEYS.forEach((key) => {
+  const values = Object.values(foodNutrients).map((f) => f[key]).sort((a, b) => a - b);
+  const mid = Math.floor(values.length / 2);
+  foodMedians[key] = values.length % 2 === 0 ? (values[mid - 1] + values[mid]) / 2 : values[mid];
+});
 
 // creates a new student account; password is hashed, never stored plain
 app.post("/api/signup", async (req, res) => {
@@ -171,10 +195,137 @@ app.get("/api/students/:id/nutrition", async (req, res) => {
   res.json(rows.map((r) => r.food_name));
 });
 
-// returns a student's real parent-alert history from MySQL, newest first
+// the real mood -> nutrient rule table + the real per-nutrient medians it's
+// evaluated against — lets the frontend explain WHY a food matched a mood,
+// using the exact same real numbers the rule engine itself was built on
+app.get("/api/mood-rules", (req, res) => {
+  res.json({ rules: MOOD_RULES, medians: foodMedians });
+});
+
+// a student's real check-in history (not just the latest one) — each past
+// check-in's real mood and the real foods the rule engine matched for it,
+// newest first, so the frontend can show "most recent, then before that..."
+app.get("/api/students/:id/nutrition-history", async (req, res) => {
+  const limit = Math.min(parseInt(req.query.limit, 10) || 10, 50);
+  const [moods] = await pool.query(
+    `SELECT m.id, m.mood, m.detected_at, s.subject
+     FROM moods m LEFT JOIN sessions s ON m.session_id = s.id
+     WHERE m.student_id = ? ORDER BY m.detected_at DESC LIMIT ?`,
+    [req.params.id, limit]
+  );
+  if (moods.length === 0) return res.json([]);
+
+  const [foodRows] = await pool.query(
+    "SELECT mood_id, food_name FROM food_recommendations WHERE mood_id IN (?)",
+    [moods.map((m) => m.id)]
+  );
+  const foodsByMood = {};
+  foodRows.forEach((r) => {
+    (foodsByMood[r.mood_id] = foodsByMood[r.mood_id] || []).push(r.food_name);
+  });
+
+  res.json(
+    moods.map((m) => ({
+      mood_id: m.id,
+      mood: m.mood,
+      detected_at: m.detected_at,
+      subject: m.subject,
+      foods: foodsByMood[m.id] || [],
+    }))
+  );
+});
+
+// real mood (by majority, same rule as the live check-in batching) + its
+// real matched foods, one entry per real calendar week over the last
+// `weeks` weeks (default 5) — week 1 is the most recent 7-day window,
+// week 5 the oldest
+// formats a Date as YYYY-MM-DD using its LOCAL date, not toISOString's UTC
+// conversion — toISOString shifts the date backward whenever the server's
+// local timezone is ahead of UTC (e.g. midnight IST on the 3rd is still the
+// 2nd in UTC), which silently mislabels "today" as "yesterday"
+function localDateStr(date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+  const d = String(date.getDate()).padStart(2, "0");
+  return `${y}-${m}-${d}`;
+}
+
+app.get("/api/students/:id/mood-weeks", async (req, res) => {
+  const weeksCount = Math.min(parseInt(req.query.weeks, 10) || 5, 12);
+  const days = weeksCount * 7;
+  const [rows] = await pool.query(
+    `SELECT id, mood, detected_at FROM moods
+     WHERE student_id = ? AND detected_at >= DATE_SUB(CURDATE(), INTERVAL ? DAY)
+     ORDER BY detected_at ASC`,
+    [req.params.id, days]
+  );
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  const weekBuckets = Array.from({ length: weeksCount }, () => ({ counts: {}, firstIdByMood: {} }));
+  for (const row of rows) {
+    const detected = new Date(row.detected_at);
+    const detectedDay = new Date(detected.getFullYear(), detected.getMonth(), detected.getDate());
+    const diffDays = Math.floor((today - detectedDay) / (24 * 60 * 60 * 1000));
+    const weekIndex = Math.floor(diffDays / 7);
+    if (weekIndex < 0 || weekIndex >= weeksCount) continue;
+    const bucket = weekBuckets[weekIndex];
+    bucket.counts[row.mood] = (bucket.counts[row.mood] || 0) + 1;
+    if (!(row.mood in bucket.firstIdByMood)) bucket.firstIdByMood[row.mood] = row.id;
+  }
+
+  const weekEntries = weekBuckets.map((bucket, i) => {
+    let winningMood = null;
+    let winningCount = 0;
+    for (const [mood, count] of Object.entries(bucket.counts)) {
+      if (count > winningCount) {
+        winningCount = count;
+        winningMood = mood;
+      }
+    }
+    const end = new Date(today);
+    end.setDate(end.getDate() - i * 7);
+    const start = new Date(end);
+    start.setDate(start.getDate() - 6);
+    return {
+      week: i + 1,
+      start: localDateStr(start),
+      end: localDateStr(end),
+      mood: winningMood,
+      mood_id: winningMood ? bucket.firstIdByMood[winningMood] : null,
+    };
+  });
+
+  const moodIds = weekEntries.map((w) => w.mood_id).filter(Boolean);
+  const foodsByMood = {};
+  if (moodIds.length) {
+    const [foodRows] = await pool.query(
+      "SELECT mood_id, food_name FROM food_recommendations WHERE mood_id IN (?)",
+      [moodIds]
+    );
+    foodRows.forEach((r) => {
+      (foodsByMood[r.mood_id] = foodsByMood[r.mood_id] || []).push(r.food_name);
+    });
+  }
+
+  res.json(
+    weekEntries.map((w) => ({
+      week: w.week,
+      start: w.start,
+      end: w.end,
+      mood: w.mood,
+      foods: w.mood_id ? foodsByMood[w.mood_id] || [] : [],
+    }))
+  );
+});
+
+// returns a student's real parent-alert history from MySQL, newest first —
+// including the real foods recommended at that same check-in, so the
+// parent sees what was suggested, not just the mood that triggered it
 app.get("/api/students/:id/alerts", async (req, res) => {
   const [rows] = await pool.query(
-    `SELECT a.id, a.sent_at, m.mood, s.subject
+    `SELECT a.id, a.mood_id, a.sent_at, m.mood, s.subject
      FROM alerts a
      JOIN moods m ON a.mood_id = m.id
      LEFT JOIN sessions s ON m.session_id = s.id
@@ -182,7 +333,18 @@ app.get("/api/students/:id/alerts", async (req, res) => {
      ORDER BY a.sent_at DESC`,
     [req.params.id]
   );
-  res.json(rows);
+  if (rows.length === 0) return res.json([]);
+
+  const [foodRows] = await pool.query(
+    "SELECT mood_id, food_name FROM food_recommendations WHERE mood_id IN (?)",
+    [rows.map((r) => r.mood_id)]
+  );
+  const foodsByMood = {};
+  foodRows.forEach((r) => {
+    (foodsByMood[r.mood_id] = foodsByMood[r.mood_id] || []).push(r.food_name);
+  });
+
+  res.json(rows.map((r) => ({ ...r, foods: foodsByMood[r.mood_id] || [] })));
 });
 
 // records one raw posture check (detected client-side by MediaPipe Pose,
@@ -323,49 +485,91 @@ app.get("/api/students/:id/food-log", async (req, res) => {
   res.json(rows);
 });
 
-// runs a check-in photo through the CNN + rule engine, saves the result, returns it
+// runs a check-in photo through the CNN + rule engine, streaming the REAL
+// progress to the frontend as it happens (Server-Sent Events) instead of
+// the caller waiting silently for the whole ~40s round trip. Each line
+// predict.py already logs (face-crop, grayscale, model load, prediction...)
+// gets forwarded live, finishing with a "result" event once the mood and
+// foods are saved to the database.
 app.post("/api/checkin", upload.single("photo"), async (req, res) => {
   const { student_id, session_id } = req.body;
   if (!req.file) {
     return res.status(400).json({ error: "No photo uploaded" });
   }
 
-  execFile(
-    "python",
-    ["ml/connect_mood_to_food.py", "--json", req.file.path],
-    { cwd: ML_ROOT },
-    async (err, stdout) => {
-      fs.unlink(req.file.path, () => {}); // clean up the temp upload either way
+  res.writeHead(200, {
+    "Content-Type": "text/event-stream",
+    "Cache-Control": "no-cache",
+    Connection: "keep-alive",
+  });
+  const sendEvent = (event, data) => {
+    res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+  };
 
-      if (err) {
-        console.error(err);
-        return res.status(500).json({ error: "Mood detection failed" });
+  sendEvent("stage", { message: "Backend received the photo, starting mood detection" });
+
+  // "-u" forces Python's stdout to be unbuffered, so each progress line
+  // reaches us as soon as it's printed instead of all arriving in one
+  // burst right before the process exits.
+  const child = spawn("python", ["-u", "ml/connect_mood_to_food.py", "--json", req.file.path], { cwd: ML_ROOT });
+
+  let resultLine = null;
+  let buffer = "";
+  child.stdout.on("data", (chunk) => {
+    buffer += chunk.toString();
+    const lines = buffer.split("\n");
+    buffer = lines.pop(); // keep the last (possibly incomplete) line for the next chunk
+    for (const rawLine of lines) {
+      const line = rawLine.replace(/\r$/, "").replace(/\x1b\[[0-9;]*m/g, "");
+      if (!line.trim()) continue;
+      if (line.startsWith("RESULT_JSON:")) {
+        resultLine = line.slice("RESULT_JSON:".length);
+      } else if (/^\d+\/\d+ /.test(line)) {
+        continue; // Keras's own step-progress bar, not a real pipeline stage
+      } else {
+        sendEvent("stage", { message: line });
       }
-
-      // predict.py also prints log lines to stdout; the JSON result is always the last line
-      const lines = stdout.trim().split("\n");
-      const { mood, foods } = JSON.parse(lines[lines.length - 1]);
-
-      const [moodResult] = await pool.query(
-        "INSERT INTO moods (student_id, session_id, mood) VALUES (?, ?, ?)",
-        [student_id, session_id || null, mood]
-      );
-      const mood_id = moodResult.insertId;
-
-      for (const food_name of foods) {
-        await pool.query(
-          "INSERT INTO food_recommendations (mood_id, food_name) VALUES (?, ?)",
-          [mood_id, food_name]
-        );
-      }
-
-      if (CONCERNING_MOODS.has(String(mood).toLowerCase())) {
-        await pool.query("INSERT INTO alerts (mood_id) VALUES (?)", [mood_id]);
-      }
-
-      res.json({ mood_id, mood, foods });
     }
-  );
+  });
+
+  let stderrOutput = "";
+  child.stderr.on("data", (chunk) => {
+    stderrOutput += chunk.toString();
+  });
+
+  child.on("close", async (code) => {
+    fs.unlink(req.file.path, () => {}); // clean up the temp upload either way
+
+    if (code !== 0 || !resultLine) {
+      console.error(stderrOutput);
+      sendEvent("error", { error: "Mood detection failed" });
+      return res.end();
+    }
+
+    const { mood, foods } = JSON.parse(resultLine);
+    sendEvent("stage", { message: "ML finished — saving the result to the database" });
+
+    const [moodResult] = await pool.query(
+      "INSERT INTO moods (student_id, session_id, mood) VALUES (?, ?, ?)",
+      [student_id, session_id || null, mood]
+    );
+    const mood_id = moodResult.insertId;
+
+    for (const food_name of foods) {
+      await pool.query(
+        "INSERT INTO food_recommendations (mood_id, food_name) VALUES (?, ?)",
+        [mood_id, food_name]
+      );
+    }
+
+    if (CONCERNING_MOODS.has(String(mood).toLowerCase())) {
+      await pool.query("INSERT INTO alerts (mood_id) VALUES (?)", [mood_id]);
+    }
+
+    sendEvent("stage", { message: "Sending the result back to the app" });
+    sendEvent("result", { mood_id, mood, foods });
+    res.end();
+  });
 });
 
 const PORT = process.env.PORT || 3000;

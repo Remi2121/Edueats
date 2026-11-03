@@ -56,6 +56,7 @@
 .trend-chart .trend-fill{ fill:color-mix(in srgb, var(--accent) 14%, transparent); stroke:none; }
 .trend-chart .trend-dot{ fill:var(--accent); }
 .trend-chart .trend-axis{ font-size:9px; fill:var(--ink-soft); }
+.trend-chart .trend-point-emoji{ font-size:11px; }
 .trend-empty{ color:var(--ink-soft); font-size:0.84rem; padding:30px 0; text-align:center; }
 
 .weekly-progress-list{ display:flex; flex-direction:column; gap:16px; }

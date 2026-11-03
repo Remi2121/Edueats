@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { act, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import Dashboard from "./Dashboard";
@@ -11,6 +11,21 @@ const guestStudent = { id: null, name: "Luke Remingan", classLine: "Grade 8 · R
 
 const fakeStream = { getTracks: () => [{ stop: () => {} }] };
 
+// /api/checkin now streams real-time progress as Server-Sent Events,
+// finishing with one "result" event, instead of a plain JSON body — this
+// builds a real ReadableStream so the mock matches what the real endpoint
+// actually sends.
+function sseBody(events) {
+  const encoder = new TextEncoder();
+  const text = events.map(([event, data]) => `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`).join("");
+  return new ReadableStream({
+    start(controller) {
+      controller.enqueue(encoder.encode(text));
+      controller.close();
+    },
+  });
+}
+
 // Dashboard fetches /moods, /nutrition, /alerts, /focus, /sessions/today
 // automatically on mount for any real student — those are routed separately
 // here (always answered with empty history) so they don't silently eat up
@@ -20,6 +35,15 @@ function mockFetchSequence(responses) {
   return vi.fn((url, options) => {
     if (typeof url === "string" && /\/(moods|nutrition|alerts|focus)$/.test(url)) {
       return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
+    }
+    if (typeof url === "string" && url.includes("/nutrition-history")) {
+      return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
+    }
+    if (typeof url === "string" && url.includes("/mood-weeks")) {
+      return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
+    }
+    if (typeof url === "string" && url.includes("/mood-rules")) {
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({ rules: {}, medians: {} }) });
     }
     if (typeof url === "string" && url.endsWith("/sessions/today")) {
       return Promise.resolve({ ok: true, json: () => Promise.resolve({ totalMinutes: 0, sessions: [] }) });
@@ -32,6 +56,12 @@ function mockFetchSequence(responses) {
     }
     const r = responses[Math.min(call, responses.length - 1)] || { body: {} };
     call += 1;
+    if (typeof url === "string" && url.endsWith("/api/checkin")) {
+      if (r.ok === false) {
+        return Promise.resolve({ ok: false, json: () => Promise.resolve(r.body || {}) });
+      }
+      return Promise.resolve({ ok: true, body: sseBody([["result", r.body]]) });
+    }
     return Promise.resolve({ ok: r.ok !== false, json: () => Promise.resolve(r.body) });
   });
 }
@@ -92,7 +122,7 @@ describe("Dashboard (integration)", () => {
   it("Mood & Focus nav shows mood history and alerts together", async () => {
     render(<Dashboard student={student} onLogout={() => {}} />);
     await userEvent.click(screen.getByText("Mood & Focus"));
-    expect(screen.getByRole("heading", { name: "Mood History" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Mood & Food History" })).toBeInTheDocument();
     expect(screen.getByText("Recent Alerts to Parent")).toBeInTheDocument();
   });
 
@@ -151,77 +181,119 @@ describe("Dashboard (integration)", () => {
   });
 
   it("blocks check-in for a guest and shows a message instead of calling the backend", async () => {
-    vi.stubGlobal("fetch", vi.fn());
-    render(<Dashboard student={guestStudent} onLogout={() => {}} />);
-    await goToStudySession();
+    // Only fake setInterval/clearInterval (what the check-in cadence uses) —
+    // faking setTimeout/requestAnimationFrame too breaks React's and
+    // userEvent's own internals and hangs the test.
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+    const user = userEvent;
+    try {
+      vi.stubGlobal("fetch", vi.fn());
+      render(<Dashboard student={guestStudent} onLogout={() => {}} />);
+      await user.click(screen.getByText("Study Session"));
+      await user.click(screen.getByText("Start Study Session"));
 
-    // Check-in now fires automatically once the camera is ready — no click
-    // needed to trigger (and block) it. The real interval is 15 minutes, so
-    // the test-only interval override is used to make this happen quickly.
-    await userEvent.type(screen.getByLabelText(/check-in interval/i), "1");
-    await userEvent.click(screen.getByText("Start Study Session"));
+      // Check-in fires automatically once the camera is ready, on the real
+      // 15-minute interval — advance straight to the first tick.
+      await act(() => vi.advanceTimersByTimeAsync(0));
+      await act(() => vi.advanceTimersByTimeAsync(15 * 60 * 1000));
 
-    expect(await screen.findByText(/sign up with email & password/i, {}, { timeout: 3000 })).toBeInTheDocument();
-    expect(fetch).not.toHaveBeenCalled();
+      expect(screen.getByText(/sign up with email & password/i)).toBeInTheDocument();
+      expect(fetch).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("combines 3 readings by majority vote before revealing a result", async () => {
-    // 3 real readings (each ticking on the 1s test interval) need more than
-    // vitest's default 5s per-test timeout.
-    vi.stubGlobal(
-      "fetch",
-      mockFetchSequence([
-        { body: { id: 99 } }, // POST /api/sessions
-        { body: { mood_id: 1, mood: "happy", foods: ["Apple slices", "Plain yogurt"] } }, // POST /api/checkin (reused for all 3 readings)
-      ])
-    );
-    render(<Dashboard student={student} onLogout={() => {}} />);
-    await goToStudySession();
+    // Only fake setInterval/clearInterval (what the check-in cadence uses) —
+    // faking setTimeout/requestAnimationFrame too breaks React's and
+    // userEvent's own internals and hangs the test.
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+    const user = userEvent;
+    try {
+      vi.stubGlobal(
+        "fetch",
+        mockFetchSequence([
+          { body: { id: 99 } }, // POST /api/sessions
+          { body: { mood_id: 1, mood: "happy", foods: ["Apple slices", "Plain yogurt"] } }, // POST /api/checkin (reused for all 3 readings)
+        ])
+      );
+      render(<Dashboard student={student} onLogout={() => {}} />);
+      await user.click(screen.getByText("Study Session"));
+      await user.click(screen.getByText("Start Study Session")); // defaults subject to Mathematics
 
-    await userEvent.type(screen.getByLabelText(/check-in interval/i), "1");
-    await userEvent.click(screen.getByText("Start Study Session")); // defaults subject to Mathematics
+      await act(() => vi.advanceTimersByTimeAsync(0));
+      await act(() => vi.advanceTimersByTimeAsync(15 * 60 * 1000)); // reading 1
+      await act(() => vi.advanceTimersByTimeAsync(15 * 60 * 1000)); // reading 2
+      await act(() => vi.advanceTimersByTimeAsync(15 * 60 * 1000)); // reading 3 -> reveals
 
-    expect(await screen.findByText(/Happy detected/, {}, { timeout: 6000 })).toBeInTheDocument();
-    expect(screen.getByText("Apple slices")).toBeInTheDocument();
+      expect(screen.getByText(/Happy detected/)).toBeInTheDocument();
+      expect(screen.getByText("Apple slices")).toBeInTheDocument();
 
-    await userEvent.click(screen.getByText("Mood & Focus"));
-    expect(screen.getByText("No alerts sent yet today.")).toBeInTheDocument();
+      await user.click(screen.getByText("Mood & Focus"));
+      expect(screen.getByText("No alerts sent yet today.")).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
   }, 10000);
 
   it("logs a concerning mood as a parent alert once the 3-reading batch combines to one", async () => {
-    vi.stubGlobal(
-      "fetch",
-      mockFetchSequence([
-        { body: { id: 99 } },
-        { body: { mood_id: 1, mood: "sad", foods: ["Almonds", "Banana", "Oats"] } },
-      ])
-    );
-    render(<Dashboard student={student} onLogout={() => {}} />);
-    await goToStudySession();
-    await userEvent.type(screen.getByLabelText(/check-in interval/i), "1");
-    await userEvent.click(screen.getByText("Start Study Session"));
+    // Only fake setInterval/clearInterval (what the check-in cadence uses) —
+    // faking setTimeout/requestAnimationFrame too breaks React's and
+    // userEvent's own internals and hangs the test.
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+    const user = userEvent;
+    try {
+      vi.stubGlobal(
+        "fetch",
+        mockFetchSequence([
+          { body: { id: 99 } },
+          { body: { mood_id: 1, mood: "sad", foods: ["Almonds", "Banana", "Oats"] } },
+        ])
+      );
+      render(<Dashboard student={student} onLogout={() => {}} />);
+      await user.click(screen.getByText("Study Session"));
+      await user.click(screen.getByText("Start Study Session"));
 
-    await screen.findByText(/Sad detected/, {}, { timeout: 6000 });
-    await userEvent.click(screen.getByText("Mood & Focus"));
-    expect(screen.getByText(/Sad detected during Mathematics/)).toBeInTheDocument();
+      await act(() => vi.advanceTimersByTimeAsync(0));
+      await act(() => vi.advanceTimersByTimeAsync(15 * 60 * 1000));
+      await act(() => vi.advanceTimersByTimeAsync(15 * 60 * 1000));
+      await act(() => vi.advanceTimersByTimeAsync(15 * 60 * 1000));
+
+      expect(screen.getByText(/Sad detected/)).toBeInTheDocument();
+      await user.click(screen.getByText("Mood & Focus"));
+      expect(screen.getByText(/Sad detected during Mathematics/)).toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
   }, 10000);
 
   it("does not reveal a result after only 1 or 2 of the 3 readings", async () => {
-    vi.stubGlobal(
-      "fetch",
-      mockFetchSequence([
-        { body: { id: 99 } },
-        { body: { mood_id: 1, mood: "happy", foods: ["Apple slices"] } },
-      ])
-    );
-    render(<Dashboard student={student} onLogout={() => {}} />);
-    await goToStudySession();
-    await userEvent.type(screen.getByLabelText(/check-in interval/i), "1");
-    await userEvent.click(screen.getByText("Start Study Session"));
+    // Only fake setInterval/clearInterval (what the check-in cadence uses) —
+    // faking setTimeout/requestAnimationFrame too breaks React's and
+    // userEvent's own internals and hangs the test.
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+    const user = userEvent;
+    try {
+      vi.stubGlobal(
+        "fetch",
+        mockFetchSequence([
+          { body: { id: 99 } },
+          { body: { mood_id: 1, mood: "happy", foods: ["Apple slices"] } },
+        ])
+      );
+      render(<Dashboard student={student} onLogout={() => {}} />);
+      await user.click(screen.getByText("Study Session"));
+      await user.click(screen.getByText("Start Study Session"));
 
-    // Wait roughly long enough for 1-2 readings, but not all 3.
-    await new Promise((r) => setTimeout(r, 1800));
-    expect(screen.queryByText(/Happy detected/)).not.toBeInTheDocument();
+      await act(() => vi.advanceTimersByTimeAsync(0));
+      await act(() => vi.advanceTimersByTimeAsync(15 * 60 * 1000)); // reading 1 only
+      await act(() => vi.advanceTimersByTimeAsync(5 * 60 * 1000)); // short of reading 2's tick
+
+      expect(screen.queryByText(/Happy detected/)).not.toBeInTheDocument();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it("calls onLogout when Log Out is clicked on the Settings page", async () => {

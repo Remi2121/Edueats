@@ -14,7 +14,7 @@ export default function Sidebar({ activeView, onNavigate, onLogout }) {
   return (
     <aside className="sidebar">
       <div className="sidebar-brand">
-        <div className="brand-logo">
+        <div className="sidebar-brand-logo">
           <img src={logo} alt="EduEats" />
         </div>
         <div>

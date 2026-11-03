@@ -2,12 +2,13 @@ import { useEffect, useState } from "react";
 import ThemeToggle from "../ThemeToggle";
 import "./Dashboard.css";
 import Sidebar from "./Sidebar/Sidebar";
+import ActivitySearch from "./ActivitySearch";
 import ClassSessionCard from "./ClassSessionCard/ClassSessionCard";
 import MoodHistoryCard from "./MoodHistoryCard/MoodHistoryCard";
 import MoodSummaryCard from "./MoodHistoryCard/MoodSummaryCard";
+import MoodStatsCard from "./MoodHistoryCard/MoodStatsCard";
 import MoodBySubjectCard from "./MoodBySubjectCard/MoodBySubjectCard";
 import NutritionCard from "./NutritionCard/NutritionCard";
-import FocusBySubjectCard from "./FocusBySubjectCard/FocusBySubjectCard";
 import AlertsCard from "./AlertsCard/AlertsCard";
 import PostureAlertsCard from "./AlertsCard/PostureAlertsCard";
 import StatRow from "./Overview/StatRow";
@@ -16,6 +17,7 @@ import QuickActionsCard from "./Overview/QuickActionsCard";
 import StudySummaryCard from "./Overview/StudySummaryCard";
 import MoodTrendCard from "./Overview/MoodTrendCard";
 import ProgressPage from "./Progress/ProgressPage";
+import SubjectMoodTable from "./Progress/SubjectMoodTable";
 import SettingsPanel from "./SettingsPanel/SettingsPanel";
 import { MOODS, formatHistoryTimestamp, initials, timeNow } from "../../data/moods";
 import { notify } from "../../data/preferences";
@@ -31,6 +33,31 @@ const CHECKIN_BATCH_SIZE = 3;
 // Posture follows the same "15 min reading, 45 min (3 readings) decision"
 // cadence as mood, rather than alerting on a single bad reading.
 const POSTURE_BATCH_SIZE = 3;
+
+const VIEW_SUBTITLES = {
+  overview: "Stay focused, eat healthy, and learn better.",
+  study: "Focus on one thing at a time — you've got this.",
+  nutrition: "Food ideas and your daily food journal.",
+  moodfocus: "Explore your mood patterns and focus trends.",
+  progress: "Your effort adds up — look how far you've come.",
+  settings: "Make EduEats feel right for you.",
+};
+const VIEW_TITLES = {
+  overview: "Dashboard",
+  study: "Study Session",
+  nutrition: "My Nutrition",
+  moodfocus: "Mood & Focus",
+  progress: "My Progress",
+  settings: "Settings",
+};
+const PAGE_LIST = [
+  { id: "overview", label: "Dashboard", keywords: "home overview daily goal quick actions" },
+  { id: "study", label: "Study Session", keywords: "study timer focus camera session pause start" },
+  { id: "nutrition", label: "My Nutrition", keywords: "food nutrition meal log" },
+  { id: "moodfocus", label: "Mood & Focus", keywords: "mood happy sad focus trends subject" },
+  { id: "progress", label: "My Progress", keywords: "progress weekly monthly subject performance" },
+  { id: "settings", label: "Settings", keywords: "settings profile theme preferences webcam notifications" },
+];
 
 const SEED_TIMELINE = [
   { moodName: "Neutral", when: "Mon 9:05 AM" }, { moodName: "Happy", when: "Mon 1:40 PM" },
@@ -377,11 +404,12 @@ export default function Dashboard({ student, onLogout, theme, onToggleTheme }) {
       <main className="main">
         <div className="topbar">
           <div>
-            <h1 className="heading-font">Hi, {student.name.split(" ")[0]}! 👋</h1>
-            <p className="date mono">Stay focused, eat healthy, and learn better.</p>
+            <p className="eyebrow">STUDENT PORTAL / {VIEW_TITLES[activeView].toUpperCase()}</p>
+            <h1 className="heading-font">{VIEW_TITLES[activeView]}</h1>
           </div>
           <div className="topbar-right">
             <ThemeToggle theme={theme} onToggle={onToggleTheme} onDashboard />
+            <ActivitySearch pages={PAGE_LIST} onNavigate={setActiveView} />
             <button
               className="bell-btn"
               type="button"
@@ -403,15 +431,26 @@ export default function Dashboard({ student, onLogout, theme, onToggleTheme }) {
           </div>
         </div>
 
+        <div className="page-intro">
+          <p className="date">
+            {activeView === "overview" ? `Hi, ${student.name.split(" ")[0]}! 👋 ${VIEW_SUBTITLES.overview}` : VIEW_SUBTITLES[activeView]}
+          </p>
+          {activeView === "overview" && <span className="pill">🌱 Your student space</span>}
+        </div>
+
         {activeView === "overview" && (
           <>
-            <StatRow latestMood={latestMood} studyMinutes={studyMinutes} />
+            <StatRow latestMood={latestMood} studyMinutes={studyMinutes} nutritionOnTrack={!latestMood.concerning} />
             <div className="overview-row">
-              <RecommendationCard snacks={snacks} />
+              <RecommendationCard snacks={snacks} onNavigate={setActiveView} />
               <div className="overview-col">
                 <QuickActionsCard onNavigate={setActiveView} />
                 <StudySummaryCard latestMood={latestMood} nutritionOnTrack={!latestMood.concerning} studyMinutes={studyMinutes} />
               </div>
+            </div>
+            <div className="dash-card hydration-tip">
+              <h2 className="heading-font">💡 Remember to hydrate</h2>
+              <p className="section-label" style={{ margin: 0 }}>Take a short break between sessions and drink some water.</p>
             </div>
           </>
         )}
@@ -440,6 +479,7 @@ export default function Dashboard({ student, onLogout, theme, onToggleTheme }) {
 
           {activeView === "moodfocus" && (
             <>
+              <MoodStatsCard studentId={student.id} />
               <MoodSummaryCard studentId={student.id} />
               <MoodBySubjectCard studentId={student.id} />
               <MoodTrendCard entries={timeline} />
@@ -452,7 +492,7 @@ export default function Dashboard({ student, onLogout, theme, onToggleTheme }) {
           {activeView === "progress" && (
             <>
               <ProgressPage studentId={student.id} subjects={subjects} timeline={timeline} />
-              <FocusBySubjectCard subjects={subjects} />
+              <SubjectMoodTable studentId={student.id} />
             </>
           )}
 

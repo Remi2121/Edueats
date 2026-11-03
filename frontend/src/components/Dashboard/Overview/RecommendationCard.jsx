@@ -7,29 +7,41 @@ import "./Overview.css";
 // is still available on the My Nutrition page.
 const SNAPSHOT_FOOD_COUNT = 4;
 
-export default function RecommendationCard({ snacks }) {
+export default function RecommendationCard({ snacks, onNavigate }) {
+  const top = snacks.slice(0, SNAPSHOT_FOOD_COUNT);
   return (
     <div className="dash-card recommendation-card">
-      <div>
-        <h2 className="heading-font">Today's Recommendation</h2>
-        <p className="section-label" style={{ marginBottom: 10 }}>Fuel your focus with the right food!</p>
+      <div className="card-head">
+        <div>
+          <h2 className="heading-font">Today's Food Inspiration</h2>
+          <p className="section-label" style={{ margin: 0 }}>Fuel your focus with the right food</p>
+        </div>
+        <span className="pill">✨ Recommended</span>
+      </div>
+      <div className="food-banner">
+        <div>
+          <strong>{top.join(" + ") || "Check in to get a suggestion"}</strong>
+          <p>Matched to your current mood by the real rule engine.</p>
+          <div className="recommendation-tags">
+            <span className="recommendation-tag">💡 Boosts concentration</span>
+            <span className="recommendation-tag">⚡ Reduces tiredness</span>
+          </div>
+        </div>
         <div className="recommendation-foods">
-          {snacks.slice(0, SNAPSHOT_FOOD_COUNT).map((food) => (
-            <div key={food} className="recommendation-food">
-              {foodImageUrl(food) ? (
-                <img className="recommendation-food-img" src={foodImageUrl(food)} alt="" loading="lazy" />
-              ) : (
-                <span className="recommendation-food-img recommendation-food-img-fallback">🍽️</span>
-              )}
-              <span className="recommendation-food-name">{food}</span>
-            </div>
+          {top.map((food) => (
+            foodImageUrl(food) ? (
+              <img key={food} className="recommendation-food-img" src={foodImageUrl(food)} alt={food} loading="lazy" />
+            ) : (
+              <span key={food} className="recommendation-food-img recommendation-food-img-fallback">🍽️</span>
+            )
           ))}
         </div>
-        <div className="recommendation-tags">
-          <span className="recommendation-tag">💡 Boosts concentration</span>
-          <span className="recommendation-tag">⚡ Reduces tiredness</span>
-        </div>
       </div>
+      {onNavigate && (
+        <button className="text-link" type="button" onClick={() => onNavigate("nutrition")}>
+          Explore nutrition →
+        </button>
+      )}
     </div>
   );
 }

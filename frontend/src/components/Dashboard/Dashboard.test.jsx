@@ -92,13 +92,13 @@ afterEach(() => {
 describe("Dashboard (integration)", () => {
   it("greets the student by first name", () => {
     render(<Dashboard student={student} onLogout={() => {}} />);
-    expect(screen.getByText("Hi, Luke! 👋")).toBeInTheDocument();
+    expect(screen.getByText(/Hi, Luke! 👋/)).toBeInTheDocument();
   });
 
   it("shows the overview summary, not the full cards", () => {
     render(<Dashboard student={student} onLogout={() => {}} />);
     expect(screen.getByText("Current Mood")).toBeInTheDocument();
-    expect(screen.getByText("Today's Recommendation")).toBeInTheDocument();
+    expect(screen.getByText("Today's Food Inspiration")).toBeInTheDocument();
     expect(screen.getByText("Quick Actions")).toBeInTheDocument();
     expect(screen.getByText("Study's Summary")).toBeInTheDocument();
     // The full Nutrition/Mood History/Focus/Alerts pages only show on their
@@ -126,10 +126,10 @@ describe("Dashboard (integration)", () => {
     expect(screen.getByText("Recent Alerts to Parent")).toBeInTheDocument();
   });
 
-  it("My Progress nav shows focus by subject", async () => {
+  it("My Progress nav shows the subject-wise mood table", async () => {
     render(<Dashboard student={student} onLogout={() => {}} />);
     await userEvent.click(screen.getByText("My Progress"));
-    expect(screen.getByText("Focus by Subject")).toBeInTheDocument();
+    expect(screen.getByText("Subject-wise mood patterns")).toBeInTheDocument();
   });
 
   it("Settings nav shows the settings panel with a working theme toggle", async () => {

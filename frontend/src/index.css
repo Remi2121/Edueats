@@ -95,3 +95,16 @@ a, button, input, .card, .theme-toggle svg{
 
 .snacks{ display:flex; flex-wrap:wrap; gap:6px; }
 .snack{ background:var(--surface-alt); border-radius:20px; padding:6px 12px; font-size:0.8rem; }
+
+.pill{
+  font-size:0.66rem; font-weight:800; padding:7px 12px; border-radius:30px;
+  background:var(--surface-alt); color:var(--accent); white-space:nowrap;
+}
+
+.tab-row{ display:flex; gap:8px; flex-wrap:wrap; }
+.tab{
+  border:1px solid var(--line); background:var(--surface); color:var(--ink);
+  padding:10px 16px; border-radius:30px; font-size:0.78rem; font-weight:800;
+  cursor:pointer; font-family:inherit;
+}
+.tab.active{ background:var(--accent); color:var(--accent-contrast); border-color:var(--accent); }

@@ -4,7 +4,8 @@ import "../Overview/Overview.css";
 
 const API_BASE = "http://localhost:3000";
 const CHART_W = 320;
-const CHART_H = 130;
+const CHART_H = 160;
+const MIN_BAR_H = 4;
 
 function formatHours(minutes) {
   const h = Math.floor(minutes / 60);
@@ -29,15 +30,28 @@ function StudyTimeTrendChart({ days }) {
 
   return (
     <svg className="bar-chart" viewBox={`0 0 ${CHART_W} ${CHART_H + 16}`} preserveAspectRatio="none">
+      <defs>
+        <linearGradient id="barGradient" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor="var(--accent2)" />
+          <stop offset="100%" stopColor="var(--accent)" />
+        </linearGradient>
+      </defs>
       {sorted.map((d, i) => {
-        const h = (d.minutes / maxMinutes) * CHART_H;
+        const h = Math.max((Number(d.minutes) / maxMinutes) * CHART_H, MIN_BAR_H);
         const date = new Date(d.day);
         const label = showEveryLabel
           ? date.toLocaleDateString("en-US", { weekday: "short" }).slice(0, 2)
           : String(date.getDate());
         return (
           <g key={d.day}>
-            <rect x={i * barW + barW * 0.2} y={CHART_H - h} width={barW * 0.6} height={h} rx="2" />
+            <rect
+              x={i * barW + barW * 0.22}
+              y={CHART_H - h}
+              width={barW * 0.56}
+              height={h}
+              rx={Math.min(barW * 0.28, 8)}
+              fill="url(#barGradient)"
+            />
             {(showEveryLabel || i % 4 === 0) && (
               <text className="bar-axis" x={i * barW + barW / 2} y={CHART_H + 13} textAnchor="middle">{label}</text>
             )}
@@ -71,7 +85,7 @@ export default function ProgressPage({ studentId, subjects, timeline }) {
     };
   }, [studentId, range]);
 
-  const rangeMinutes = days.reduce((sum, d) => sum + d.minutes, 0);
+  const rangeMinutes = days.reduce((sum, d) => sum + Number(d.minutes || 0), 0);
 
   const focusRate = subjects.length
     ? Math.round(subjects.reduce((sum, s) => sum + s.score, 0) / subjects.length)

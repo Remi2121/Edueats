@@ -70,6 +70,8 @@ export default function NutritionCard({ hidden, focused, snacks, studentId }) {
   const [logSaving, setLogSaving] = useState(false);
   const [logError, setLogError] = useState("");
 
+  const [detailsQuery, setDetailsQuery] = useState("");
+
   const [history, setHistory] = useState(null);
   const [expandedEntries, setExpandedEntries] = useState(new Set());
   // Which past check-in's foods are currently shown — only one at a time,
@@ -149,7 +151,7 @@ export default function NutritionCard({ hidden, focused, snacks, studentId }) {
   // loads the real food list + this student's real log history the first
   // time they open the My Food Log tab
   useEffect(() => {
-    if (tab !== "log" || !studentId || logHistory !== null) return;
+    if ((tab !== "log" && tab !== "details") || !studentId || logHistory !== null) return;
     fetch(`${API_BASE}/api/foods`)
       .then((res) => res.json())
       .then((names) => {
@@ -188,7 +190,6 @@ export default function NutritionCard({ hidden, focused, snacks, studentId }) {
 
   return (
     <div className={"dash-card" + (hidden ? " hide" : "") + (focused ? " focused" : "")}>
-      <h2 className="heading-font">My Nutrition</h2>
       <div className="nutrition-tabs">
         <button className={"nutrition-tab" + (tab === "recommended" ? " active" : "")} type="button" onClick={() => setTab("recommended")}>
           Recommended
@@ -196,9 +197,71 @@ export default function NutritionCard({ hidden, focused, snacks, studentId }) {
         <button className={"nutrition-tab" + (tab === "log" ? " active" : "")} type="button" onClick={() => setTab("log")}>
           My Food Log
         </button>
+        <button className={"nutrition-tab" + (tab === "details" ? " active" : "")} type="button" onClick={() => setTab("details")}>
+          Nutrition Details
+        </button>
       </div>
 
-      {tab === "log" ? (
+      {tab === "details" ? (
+        <>
+          <p className="section-label" style={{ marginTop: 14, textTransform: "none", letterSpacing: "normal" }}>
+            View the nutrition details of every food you have logged.
+          </p>
+          <input
+            type="text"
+            className="nutrition-details-search"
+            placeholder="Search banana, rice, egg..."
+            value={detailsQuery}
+            onChange={(e) => setDetailsQuery(e.target.value)}
+          />
+          <ul className="food-record-list">
+            {logHistory === null && <li className="food-log-empty">Loading…</li>}
+            {logHistory && logHistory.length === 0 && (
+              <li className="food-log-empty">Nothing logged yet — log a food in the My Food Log tab first.</li>
+            )}
+            {logHistory &&
+              logHistory
+                .filter((e) => e.food_name.toLowerCase().includes(detailsQuery.trim().toLowerCase()))
+                .map((entry) => (
+                  <li key={entry.id}>
+                    <button
+                      type="button"
+                      className={"food-record" + (selected === entry.food_name ? " selected" : "")}
+                      onClick={() => selectFood(entry.food_name)}
+                    >
+                      {foodImageUrl(entry.food_name) ? (
+                        <img className="food-record-img" src={foodImageUrl(entry.food_name)} alt="" loading="lazy" />
+                      ) : (
+                        <span className="food-record-img food-log-img-fallback">🍽️</span>
+                      )}
+                      <span className="food-record-name">
+                        {entry.food_name}
+                        <small>{formatHistoryTimestamp(entry.logged_at)}</small>
+                      </span>
+                      <span aria-hidden="true">→</span>
+                    </button>
+                  </li>
+                ))}
+          </ul>
+
+          {selected && (
+            <div className="nutrition-details">
+              <p className="section-label">Nutrition Details — {selected}</p>
+              {loadError && <p className="settings-row-hint">{loadError}</p>}
+              {selectedNutrients && (
+                <div className="nutrient-rows">
+                  {NUTRIENT_ROWS.map(([label, key, unit]) => (
+                    <div key={key} className="nutrient-row">
+                      <span>{label}</span>
+                      <span className="mono">{selectedNutrients[key]} {unit}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </>
+      ) : tab === "log" ? (
         <>
           <p className="section-label" style={{ marginTop: 14 }}>Log a Food You Ate</p>
           <div className="field-row food-log-form">

@@ -84,7 +84,7 @@ describe("MoodHistoryCard", () => {
 
   it("switches to a different real date and shows that day's real check-ins", async () => {
     const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000);
-    const yesterdayStr = yesterday.toISOString().slice(0, 10);
+    const yesterdayStr = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, "0")}-${String(yesterday.getDate()).padStart(2, "0")}`;
     const otherDayRow = {
       mood_id: 2,
       mood: "happy",

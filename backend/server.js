@@ -447,7 +447,7 @@ app.get("/api/students/:id/sessions/week", async (req, res) => {
      GROUP BY DATE(started_at)`,
     [req.params.id, days]
   );
-  res.json(rows.map((r) => ({ day: r.day, minutes: r.minutes })));
+  res.json(rows.map((r) => ({ day: r.day, minutes: Number(r.minutes) })));
 });
 
 // real nutrient values for one food, from the same CSV the rule engine uses

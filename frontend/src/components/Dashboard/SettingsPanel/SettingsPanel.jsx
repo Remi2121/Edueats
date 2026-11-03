@@ -108,8 +108,6 @@ export default function SettingsPanel({ student, theme, onToggleTheme, onLogout 
 
   return (
     <div className="dash-card" style={{ gridColumn: "1 / -1" }}>
-      <h2 className="heading-font">Settings</h2>
-
       <div className="settings-list">
         <div className="settings-row">
           <div className="settings-row-left">

@@ -6,12 +6,23 @@
 .mood-week-tab.active{ background:var(--accent); border-color:var(--accent); color:var(--accent-contrast); }
 .mood-week-tab.empty{ opacity:0.5; }
 
-.mood-week-detail{ margin-top:14px; padding-top:12px; border-top:1px dashed var(--line); }
-.mood-week-foods{ display:flex; flex-wrap:wrap; gap:6px; margin-top:10px; }
-.mood-week-food-chip{
-  display:inline-flex; align-items:center; gap:5px;
-  background:var(--surface-alt); color:var(--ink); font-size:0.76rem;
-  padding:4px 10px 4px 4px; border-radius:999px;
+.mood-week-detail{
+  margin-top:16px; padding:18px; border-radius:17px;
+  background:var(--surface-alt); border:1px solid var(--line);
 }
-.mood-week-food-chip img{ width:18px; height:18px; border-radius:50%; object-fit:cover; }
-.mood-week-food-more{ font-size:0.76rem; color:var(--ink-soft); align-self:center; }
+.mood-week-range{ font-size:0.72rem; color:var(--ink-soft); margin:0 0 12px; }
+
+.mood-chip-lg{
+  display:inline-flex; align-items:center; gap:8px;
+  font: 800 1.15rem "Manrope", sans-serif;
+  padding:10px 20px; border-radius:999px; margin-bottom:14px;
+}
+
+.mood-week-foods{ display:flex; flex-wrap:wrap; gap:8px; }
+.mood-week-food-chip{
+  display:inline-flex; align-items:center; gap:6px;
+  background:var(--surface); border:1px solid var(--line); color:var(--ink); font-size:0.78rem; font-weight:600;
+  padding:5px 12px 5px 5px; border-radius:999px;
+}
+.mood-week-food-chip img{ width:22px; height:22px; border-radius:50%; object-fit:cover; }
+.mood-week-food-more{ font-size:0.76rem; color:var(--ink-soft); align-self:center; font-weight:600; }

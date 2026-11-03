@@ -57,9 +57,7 @@ export default function MoodSummaryCard({ studentId }) {
 
           {entry && (
             <div className="mood-week-detail">
-              <p className="section-label" style={{ textTransform: "none", letterSpacing: "normal" }}>
-                {entry.start} – {entry.end}
-              </p>
+              <p className="mood-week-range">{entry.start} – {entry.end}</p>
               {!mood ? (
                 <p className="section-label" style={{ textTransform: "none", letterSpacing: "normal" }}>
                   No check-ins that week.

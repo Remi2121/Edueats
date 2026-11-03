@@ -1,0 +1,8 @@
+.mood-bars{ display:flex; flex-direction:column; gap:14px; }
+.mood-bar-row{ display:grid; grid-template-columns:120px 1fr 40px; align-items:center; gap:10px; font-size:0.82rem; }
+.mood-bar-row b{ text-align:right; }
+.bar-track{ height:9px; border-radius:999px; background:var(--surface-alt); overflow:hidden; }
+.bar-track i{ display:block; height:100%; border-radius:999px; }
+@media (max-width:600px){
+  .mood-bar-row{ grid-template-columns:90px 1fr 36px; font-size:0.76rem; }
+}

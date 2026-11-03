@@ -10,11 +10,11 @@
   .sidebar-bottom{ display:none; }
 }
 .sidebar-brand{ display:flex; align-items:center; gap:11px; padding:0 8px 24px; }
-.brand-logo{
+.sidebar-brand-logo{
   width:50px; height:50px; border-radius:16px; background:#fff; flex-shrink:0;
   display:flex; align-items:center; justify-content:center; padding:5px; overflow:hidden;
 }
-.brand-logo img{ width:100%; height:100%; object-fit:contain; }
+.sidebar-brand-logo img{ width:100%; height:100%; object-fit:contain; }
 .sidebar-brand .brand-name{ color:#fff; font-size:1.25rem; font-weight:800; letter-spacing:-0.03em; display:block; }
 .sidebar-brand .brand-name span{ color:#8DF0B2; }
 .sidebar-brand .brand-tagline{ display:block; color:#A9D9C4; font-size:0.56rem; letter-spacing:0.05em; text-transform:uppercase; margin-top:3px; }
@@ -52,6 +52,6 @@
   .sidebar{ padding:10px 16px; gap:6px; }
   .sidebar-brand{ padding-bottom:0; }
   .sidebar .brand-name{ font-size:0.92rem; }
-  .brand-logo{ width:38px; height:38px; border-radius:11px; }
+  .sidebar-brand-logo{ width:38px; height:38px; border-radius:11px; }
   .nav-link{ font-size:0.78rem; padding:8px 9px; gap:6px; }
 }

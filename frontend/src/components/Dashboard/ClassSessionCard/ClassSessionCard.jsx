@@ -347,17 +347,38 @@ export default function ClassSessionCard({
       {session.running && (
         <div>
           <div className="study-session-main">
-            <div className="cam-window">
-              <span className="live-badge">● Live</span>
-              {cameraError ? (
-                <p className="cam-caption" style={{ margin: 0 }}>{cameraError}</p>
-              ) : (
-                <video ref={videoRef} className="cam-video" autoPlay playsInline muted />
-              )}
+            <div>
+              <div className="card-head" style={{ marginBottom: 10 }}>
+                <h3 className="heading-font" style={{ margin: 0, fontSize: "0.92rem" }}>Live study preview</h3>
+                <span className="pill">● Real camera</span>
+              </div>
+              <div className="cam-window">
+                <span className="live-badge">● Live</span>
+                {cameraError ? (
+                  <p className="cam-caption" style={{ margin: 0 }}>{cameraError}</p>
+                ) : (
+                  <>
+                    <video ref={videoRef} className="cam-video" autoPlay playsInline muted />
+                    <div className="camtools">
+                      <span title="Posture tracking active" aria-hidden="true">▣</span>
+                      <span title="Audio is muted" aria-hidden="true">🔇</span>
+                      <button
+                        type="button"
+                        title="Fullscreen preview"
+                        aria-label="Fullscreen preview"
+                        onClick={() => videoRef.current?.requestFullscreen?.()}
+                      >
+                        ⛶
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
             <canvas ref={canvasRef} style={{ display: "none" }} />
 
             <div className="detected-mood-panel">
+              <h3 className="heading-font" style={{ margin: "0 0 6px", fontSize: "0.92rem" }}>Your session 🌿</h3>
               <p className="section-label">Detected Mood</p>
               {result ? (
                 <div className="detected-mood-chip" style={{ background: result.mood.bg, color: result.mood.ink }}>
@@ -397,9 +418,9 @@ export default function ClassSessionCard({
             </div>
             <div className="study-timer-controls">
               <button className="btn-icon" type="button" onClick={() => setPaused((p) => !p)} aria-label={paused ? "Resume" : "Pause"}>
-                {paused ? "▶️" : "⏸️"}
+                {paused ? "▶️ Resume" : "⏸️ Pause"}
               </button>
-              <button className="btn-icon btn-icon-stop" type="button" onClick={onStop} aria-label="Stop Session">⏹️</button>
+              <button className="btn-icon btn-icon-stop" type="button" onClick={onStop} aria-label="Stop Session">⏹️ Stop</button>
             </div>
             <div className="next-break">
               <p className="section-label" style={{ marginBottom: 4 }}>Next check-in in {formatTime(secondsUntilCheckin)}</p>

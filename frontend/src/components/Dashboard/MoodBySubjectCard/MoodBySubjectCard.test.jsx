@@ -41,6 +41,6 @@ describe("MoodBySubjectCard", () => {
   it("shows a real empty message when there are no subject-linked check-ins", async () => {
     vi.stubGlobal("fetch", vi.fn(() => Promise.resolve({ ok: true, json: () => Promise.resolve([]) })));
     render(<MoodBySubjectCard studentId={6} />);
-    expect(await screen.findByText("No check-ins during a class session yet.")).toBeInTheDocument();
+    expect(await screen.findByText("No check-ins during a class session in the last 30 days yet.")).toBeInTheDocument();
   });
 });

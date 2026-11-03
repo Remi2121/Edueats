@@ -1,0 +1,34 @@
+.dash-card .field-row{ margin-bottom:16px; }
+.badge{ font-size:0.7rem; font-weight:700; padding:4px 10px; border-radius:999px; background:var(--surface-alt); color:var(--ink-soft); }
+.badge.live{ background:color-mix(in srgb, var(--accent) 22%, transparent); color:var(--accent); }
+.session-live-top{ display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; flex-wrap:wrap; gap:8px; }
+.subject-name{ font-weight:700; font-size:0.98rem; margin-right:12px; }
+.session-timer{ color:var(--ink-soft); font-size:0.9rem; }
+
+.cam-window{
+  background:var(--surface-alt); border-radius:14px; aspect-ratio:4/3;
+  display:flex; align-items:center; justify-content:center; position:relative; overflow:hidden; margin-bottom:8px;
+}
+.cam-window img, .cam-window video{ width:100%; height:100%; object-fit:cover; }
+.cam-guide{ position:absolute; inset:14px; border:2px dashed color-mix(in srgb, var(--ink-soft) 55%, transparent); border-radius:12px; }
+.cam-face{ opacity:0.55; }
+.cam-caption{ text-align:center; font-size:0.76rem; color:var(--ink-soft); margin-bottom:20px; }
+.dash-card .cam-window{ aspect-ratio:4/3; max-width:480px; margin:0 auto 8px; }
+.dash-card .cam-face{ opacity:0.5; }
+
+.checkin-result{ text-align:center; margin-bottom:12px; }
+.result-mood-chip{
+  display:inline-flex; align-items:center; gap:6px; font-weight:700;
+  font-size:0.85rem; padding:6px 14px; border-radius:999px; margin-bottom:8px;
+}
+.result-foods{ display:flex; flex-wrap:wrap; justify-content:center; gap:6px; }
+.result-food-chip{
+  background:var(--surface-alt); color:var(--ink); font-size:0.78rem;
+  padding:5px 10px; border-radius:999px;
+}
+
+@media (max-width:600px){
+  .session-live-top{ flex-direction:column; align-items:flex-start; gap:8px; }
+  .dash-card .cam-window{ aspect-ratio:4/3; max-width:100%; }
+  .field-row .field select{ width:100%; }
+}

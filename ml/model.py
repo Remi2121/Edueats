@@ -14,7 +14,7 @@ def build_model():
         layers.Conv2D(32, (3, 3), activation="relu", padding="same"),
         layers.BatchNormalization(),
         layers.MaxPooling2D((2, 2)),
-        layers.Dropout(0.25),  # randomly ignore some, avoid memorizing this round's patterns
+        layers.Dropout(0.10),  # randomly ignore some, avoid memorizing this round's patterns
 
         # round 2: find more complex patterns built from round 1's patterns
         layers.Conv2D(64, (3, 3), activation="relu", padding="same"),
@@ -22,7 +22,7 @@ def build_model():
         layers.Conv2D(64, (3, 3), activation="relu", padding="same"),
         layers.BatchNormalization(),
         layers.MaxPooling2D((2, 2)),
-        layers.Dropout(0.25),
+        layers.Dropout(0.10),
 
         # round 3: find even higher-level patterns (e.g. parts of a face)
         layers.Conv2D(128, (3, 3), activation="relu", padding="same"),
@@ -30,7 +30,7 @@ def build_model():
         layers.Conv2D(128, (3, 3), activation="relu", padding="same"),
         layers.BatchNormalization(),
         layers.MaxPooling2D((2, 2)),
-        layers.Dropout(0.25),
+        layers.Dropout(0.10),
 
         # round 4: find the most complex, combined patterns
         layers.Conv2D(256, (3, 3), activation="relu", padding="same"),
@@ -38,16 +38,16 @@ def build_model():
         layers.Conv2D(256, (3, 3), activation="relu", padding="same"),
         layers.BatchNormalization(),
         layers.MaxPooling2D((2, 2)),
-        layers.Dropout(0.25),
+        layers.Dropout(0.10),
 
         layers.Flatten(),                       # turn the image grid into one long list
-        layers.Dense(256, activation="relu"),    # combine everything learned so far
+        layers.Dense(1024, activation="relu"),    # combine everything learned so far
         layers.Dropout(0.5),                     # randomly ignore half, avoid memorizing
         layers.Dense(NUM_CLASSES, activation="softmax"),  # final emotion probabilities
     ])
 
     model.compile(
-        optimizer="adam",
+        optimizer=tf.keras.optimizers.Adam(learning_rate=0.0001),
         loss="sparse_categorical_crossentropy",
         metrics=["accuracy"],
     )

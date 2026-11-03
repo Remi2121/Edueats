@@ -28,8 +28,13 @@ def load_datasets():
 
     # shrink pixel brightness from 0-255 down to 0-1, easier for the model to learn
     rescale = tf.keras.layers.Rescaling(1.0 / 255)
-    train_ds = train_ds.map(lambda x, y: (rescale(x), y))
-    test_ds = test_ds.map(lambda x, y: (rescale(x), y))
+    train_ds = train_ds.map(lambda x, y: (rescale(x), y), num_parallel_calls=tf.data.AUTOTUNE)
+    test_ds = test_ds.map(lambda x, y: (rescale(x), y), num_parallel_calls=tf.data.AUTOTUNE)
+
+    # keep the resized/rescaled photos in memory after the first epoch, so later epochs
+    # don't re-read and re-decode every photo from disk again
+    train_ds = train_ds.cache()
+    test_ds = test_ds.cache()
 
     # randomly flip/rotate/zoom each training photo a little, differently every epoch,
     # so the model sees slight variations instead of memorizing the exact same images.
@@ -39,5 +44,11 @@ def load_datasets():
         tf.keras.layers.RandomRotation(0.1),
         tf.keras.layers.RandomZoom(0.1),
     ])
-    train_ds = train_ds.map(lambda x, y: (augment(x, training=True), y))
+    train_ds = train_ds.map(lambda x, y: (augment(x, training=True), y), num_parallel_calls=tf.data.AUTOTUNE)
+
+    # prepare the next batch while the model is still training on the current one,
+    # instead of the model sitting idle waiting for data
+    train_ds = train_ds.prefetch(tf.data.AUTOTUNE)
+    test_ds = test_ds.prefetch(tf.data.AUTOTUNE)
+
     return train_ds, test_ds, class_names

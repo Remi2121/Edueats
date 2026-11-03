@@ -1,0 +1,8 @@
+.mood-chip-lg{ display:inline-flex; align-items:center; gap:8px; padding:8px 16px; border-radius:999px; font-size:1rem; font-weight:700; margin-bottom:6px; }
+.mood-updated{ font-size:0.74rem; color:var(--ink-soft); margin:0 0 16px; }
+.mood-timeline{ display:flex; gap:6px; flex-wrap:wrap; }
+.mood-dot{ width:16px; height:16px; border-radius:50%; border:1px solid var(--line); cursor:default; }
+
+@media (max-width:600px){
+  .mood-chip-lg{ font-size:0.9rem; padding:7px 13px; }
+}

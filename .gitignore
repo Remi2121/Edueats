@@ -15,6 +15,7 @@ env/
 # Node
 node_modules/
 npm-debug.log*
+backend/uploads/
 
 # Secrets / config
 .env
@@ -30,3 +31,4 @@ Thumbs.db
 
 *.keras
 *.h5
+ml/logs/

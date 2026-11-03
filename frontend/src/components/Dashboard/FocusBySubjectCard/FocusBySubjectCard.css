@@ -1,0 +1,13 @@
+.subject-bar-list{ display:flex; flex-direction:column; gap:12px; }
+.subject-bar-row{ display:flex; align-items:center; gap:10px; }
+.subject-bar-label{ width:92px; flex-shrink:0; font-size:0.82rem; font-weight:600; }
+.subject-bar-track{ flex:1; height:8px; border-radius:999px; background:var(--surface-alt); overflow:hidden; }
+.subject-bar-fill{ display:block; height:100%; border-radius:999px; background:var(--ink-soft); transition:width .4s ease; }
+.subject-bar-row.top .subject-bar-fill{ background:linear-gradient(90deg, var(--accent), var(--accent2)); }
+.subject-bar-row.top .subject-bar-label{ color:var(--accent); }
+.subject-bar-pct{ width:36px; text-align:right; font-size:0.78rem; color:var(--ink-soft); flex-shrink:0; }
+
+@media (max-width:600px){
+  .subject-bar-label{ width:70px; font-size:0.78rem; }
+  .subject-bar-pct{ width:32px; font-size:0.74rem; }
+}

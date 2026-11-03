@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import ThemeToggle from "../ThemeToggle";
 import "./Dashboard.css";
 import Sidebar from "./Sidebar/Sidebar";
 import ClassSessionCard from "./ClassSessionCard/ClassSessionCard";
@@ -295,6 +296,7 @@ export default function Dashboard({ student, onLogout, theme, onToggleTheme }) {
             <p className="date mono">Stay focused, eat healthy, and learn better.</p>
           </div>
           <div className="topbar-right">
+            <ThemeToggle theme={theme} onToggle={onToggleTheme} onDashboard />
             <button
               className="bell-btn"
               type="button"

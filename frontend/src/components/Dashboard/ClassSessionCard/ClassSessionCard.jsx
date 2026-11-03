@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { FilesetResolver, PoseLandmarker } from "@mediapipe/tasks-vision";
 import { isWebcamDisabledByUser } from "../../../data/preferences";
+import { foodImageUrl } from "../../../data/foodImages";
 import "./ClassSessionCard.css";
 import "../Overview/Overview.css";
 
@@ -369,7 +370,10 @@ export default function ClassSessionCard({
               </div>
               <div className="result-foods">
                 {result.foods.map((food) => (
-                  <span key={food} className="result-food-chip">{food}</span>
+                  <span key={food} className="result-food-chip">
+                    {foodImageUrl(food) && <img className="result-food-img" src={foodImageUrl(food)} alt="" loading="lazy" />}
+                    {food}
+                  </span>
                 ))}
               </div>
             </div>

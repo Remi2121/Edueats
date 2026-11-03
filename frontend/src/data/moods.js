@@ -1,20 +1,23 @@
 // Preview-only mood data. Real app replaces this with the CNN's prediction
-// (ml/predict.py) and the rule engine's food list (ml/rule_engine.py).
+// (ml/predict.py) and the rule engine's food list (ml/rule_engine.py). The
+// snack names here are spelled to match the real nutrition dataset's food
+// names exactly (see data/nutrition_dataset.csv) so even this preview state
+// shows a real food photo instead of a fallback icon.
 export const MOODS = [
   { name: "Happy", emoji: "🙂", bg: "var(--mood-happy-bg)", ink: "var(--mood-happy-ink)",
-    snacks: ["Apple slices", "Plain yogurt", "Carrot sticks"], valence: 6, concerning: false },
+    snacks: ["Apple", "Plain yogurt", "Carrot"], valence: 6, concerning: false },
   { name: "Sad", emoji: "😔", bg: "var(--mood-sad-bg)", ink: "var(--mood-sad-ink)",
     snacks: ["Almonds", "Banana", "Oats"], valence: -4, concerning: true },
   { name: "Angry", emoji: "😠", bg: "var(--mood-angry-bg)", ink: "var(--mood-angry-ink)",
-    snacks: ["Whole wheat crackers", "Cheese cubes", "Orange"], valence: -5, concerning: true },
+    snacks: ["Whole wheat bread", "Cheddar cheese", "Orange"], valence: -5, concerning: true },
   { name: "Fear", emoji: "😨", bg: "var(--mood-fear-bg)", ink: "var(--mood-fear-ink)",
-    snacks: ["Almonds", "Spinach salad", "Milk"], valence: -4, concerning: true },
+    snacks: ["Almonds", "Spinach", "Whole milk"], valence: -4, concerning: true },
   { name: "Disgust", emoji: "🤢", bg: "var(--mood-disgust-bg)", ink: "var(--mood-disgust-ink)",
-    snacks: ["Plain crackers", "Boiled egg", "Watermelon"], valence: -3, concerning: true },
+    snacks: ["Popcorn", "Egg, boiled", "Watermelon"], valence: -3, concerning: true },
   { name: "Neutral", emoji: "😐", bg: "var(--mood-neutral-bg)", ink: "var(--mood-neutral-ink)",
-    snacks: ["Mixed nuts", "Whole grain toast", "Orange"], valence: 1, concerning: false },
+    snacks: ["Almonds", "Whole wheat bread", "Orange"], valence: 1, concerning: false },
   { name: "Surprise", emoji: "😮", bg: "var(--mood-surprise-bg)", ink: "var(--mood-surprise-ink)",
-    snacks: ["Granola bar", "Grapes", "Cheese cubes"], valence: 3, concerning: false },
+    snacks: ["Oats", "Grapes", "Cheddar cheese"], valence: 3, concerning: false },
 ];
 
 export function initials(name) {

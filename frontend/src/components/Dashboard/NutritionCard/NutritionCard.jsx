@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { formatHistoryTimestamp } from "../../../data/moods";
+import { foodImageUrl } from "../../../data/foodImages";
 import "./NutritionCard.css";
 
 const API_BASE = "http://localhost:3000";
@@ -118,6 +119,11 @@ export default function NutritionCard({ hidden, focused, snacks, studentId }) {
             )}
             {logHistory && logHistory.map((entry) => (
               <li key={entry.id} className="food-log-item">
+                {foodImageUrl(entry.food_name) ? (
+                  <img className="food-log-img" src={foodImageUrl(entry.food_name)} alt="" loading="lazy" />
+                ) : (
+                  <span className="food-log-img food-log-img-fallback">🍽️</span>
+                )}
                 <span className="food-log-name">{entry.food_name}</span>
                 <span className="food-log-time mono">{formatHistoryTimestamp(entry.logged_at)}</span>
               </li>
@@ -135,7 +141,11 @@ export default function NutritionCard({ hidden, focused, snacks, studentId }) {
                 type="button"
                 onClick={() => selectFood(food)}
               >
-                <span className="food-card-icon">🍽️</span>
+                {foodImageUrl(food) ? (
+                  <img className="food-card-img" src={foodImageUrl(food)} alt="" loading="lazy" />
+                ) : (
+                  <span className="food-card-icon">🍽️</span>
+                )}
                 <span className="food-card-name">{food}</span>
               </button>
             ))}

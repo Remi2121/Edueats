@@ -40,12 +40,12 @@ export default function App() {
 
   return (
     <>
-      <ThemeToggle
-        theme={theme}
-        onToggle={() => setTheme((t) => (t === "dark" ? "light" : "dark"))}
-        onDashboard={screen === "dashboard"}
-      />
-      {screen === "auth" && <AuthFlow onComplete={handleAuthComplete} />}
+      {screen === "auth" && (
+        <>
+          <ThemeToggle theme={theme} onToggle={() => setTheme((t) => (t === "dark" ? "light" : "dark"))} />
+          <AuthFlow onComplete={handleAuthComplete} />
+        </>
+      )}
       {screen === "dashboard" && student && (
         <Dashboard
           student={student}

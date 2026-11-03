@@ -5,15 +5,16 @@
 }
 .nutrition-tab.active{ background:var(--accent); color:var(--accent-contrast); }
 
-.food-cards{ display:flex; flex-wrap:wrap; gap:10px; margin-bottom:16px; }
+.food-cards{ display:grid; grid-template-columns:repeat(auto-fill, minmax(96px, 1fr)); gap:10px; margin-bottom:16px; }
 .food-card{
-  display:flex; align-items:center; gap:8px; padding:10px 14px; border-radius:12px;
-  background:var(--surface-alt); border:1.5px solid transparent; cursor:pointer; font-family:inherit;
+  display:flex; flex-direction:column; align-items:center; gap:8px; padding:12px 8px; border-radius:14px;
+  background:var(--surface-alt); border:1.5px solid transparent; cursor:pointer; font-family:inherit; text-align:center;
 }
 .food-card:hover{ background:color-mix(in srgb, var(--surface-alt) 60%, var(--line)); }
 .food-card.selected{ border-color:var(--accent); background:color-mix(in srgb, var(--accent) 14%, var(--surface-alt)); }
-.food-card-icon{ font-size:1.1rem; }
-.food-card-name{ font-size:0.84rem; font-weight:600; }
+.food-card-icon{ font-size:1.8rem; }
+.food-card-img{ width:56px; height:56px; border-radius:50%; object-fit:cover; background:var(--surface); }
+.food-card-name{ font-size:0.8rem; font-weight:600; line-height:1.2; }
 
 .nutrition-details{ border-top:1px dashed var(--line); padding-top:14px; }
 .nutrient-rows{ display:flex; flex-direction:column; gap:8px; }
@@ -22,10 +23,12 @@
 
 .food-log-form{ align-items:flex-start; margin-bottom:4px; }
 .food-log-form .field{ margin-bottom:0; }
-.food-log-btn{ padding:11px 20px; border-radius:9px; white-space:nowrap; }
+.food-log-btn{ width:auto; flex-shrink:0; padding:11px 20px; border-radius:9px; white-space:nowrap; margin-top:0; }
 
 .food-log-list{ list-style:none; margin:10px 0 0; padding:0; display:flex; flex-direction:column; gap:10px; }
-.food-log-item{ display:flex; justify-content:space-between; align-items:center; font-size:0.86rem; }
-.food-log-name{ font-weight:600; }
+.food-log-item{ display:flex; align-items:center; gap:10px; font-size:0.86rem; }
+.food-log-img{ width:32px; height:32px; border-radius:50%; object-fit:cover; flex-shrink:0; background:var(--surface-alt); }
+.food-log-img-fallback{ display:flex; align-items:center; justify-content:center; font-size:1rem; }
+.food-log-name{ font-weight:600; flex:1; }
 .food-log-time{ color:var(--ink-soft); font-size:0.78rem; }
 .food-log-empty{ color:var(--ink-soft); font-size:0.84rem; }

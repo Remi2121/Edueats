@@ -24,6 +24,7 @@
 .nav-link:focus-visible{ outline:2px solid #5FE0BE; outline-offset:1px; }
 
 .sidebar-illustration{ margin-top:auto; display:flex; justify-content:center; padding-top:16px; }
+.sidebar-logo{ width:100%; max-width:132px; height:auto; display:block; }
 
 @media (max-width:600px){
   .sidebar{ padding:10px 16px; gap:6px; }

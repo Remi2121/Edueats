@@ -51,9 +51,11 @@
 }
 .result-foods{ display:flex; flex-wrap:wrap; justify-content:center; gap:6px; }
 .result-food-chip{
+  display:inline-flex; align-items:center; gap:6px;
   background:var(--surface-alt); color:var(--ink); font-size:0.78rem;
-  padding:5px 10px; border-radius:999px;
+  padding:5px 10px 5px 5px; border-radius:999px;
 }
+.result-food-img{ width:22px; height:22px; border-radius:50%; object-fit:cover; }
 
 @media (max-width:600px){
   .field-row .field select{ width:100%; }

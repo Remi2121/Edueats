@@ -1,3 +1,4 @@
+import logo from "../../../assets/logo-cropped.png";
 import "./Sidebar.css";
 
 function Icon({ d }) {
@@ -26,24 +27,6 @@ const NAV_ITEMS = [
   { view: "settings", label: "Settings" },
 ];
 
-// A simple original illustration (plant + stacked books) — not a copy of
-// any stock character art, just a quiet study-corner motif for the sidebar.
-function StudyCornerIllustration() {
-  return (
-    <svg width="92" height="78" viewBox="0 0 92 78" fill="none" aria-hidden="true">
-      <rect x="14" y="58" width="64" height="8" rx="2" fill="#2A4A3E" />
-      <rect x="20" y="50" width="52" height="8" rx="2" fill="#35594A" />
-      <rect x="26" y="42" width="40" height="8" rx="2" fill="#416C58" />
-      <circle cx="66" cy="26" r="14" fill="#1F3D33" />
-      <path d="M66 14c-5 0-9 4-9 9 0 3 3 7 3 10h12c0-3 3-7 3-10 0-5-4-9-9-9z" fill="#5FE0BE" opacity="0.18" />
-      <path d="M58 24c0-5 4-8 8-8M74 24c0-5-4-8-8-8" stroke="#5FE0BE" strokeWidth="2" strokeLinecap="round" />
-      <path d="M62 30c2 2 6 2 8 0" stroke="#5FE0BE" strokeWidth="2" strokeLinecap="round" />
-      <path d="M22 40c0-10 6-18 6-18s6 8 6 18" stroke="#8AD65B" strokeWidth="2.5" strokeLinecap="round" />
-      <path d="M28 22v18" stroke="#8AD65B" strokeWidth="2.5" strokeLinecap="round" />
-    </svg>
-  );
-}
-
 export default function Sidebar({ activeView, onNavigate }) {
   return (
     <aside className="sidebar">
@@ -65,7 +48,7 @@ export default function Sidebar({ activeView, onNavigate }) {
         ))}
       </nav>
       <div className="sidebar-illustration">
-        <StudyCornerIllustration />
+        <img className="sidebar-logo" src={logo} alt="EduEats" />
       </div>
     </aside>
   );

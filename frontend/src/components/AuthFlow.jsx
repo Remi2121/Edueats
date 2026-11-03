@@ -19,6 +19,7 @@ export default function AuthFlow({ onComplete }) {
   const [step, setStep] = useState("login"); // "login" | "profile"
   const [authMode, setAuthMode] = useState("signin"); // "signin" | "signup"
   const [photoDataUrl, setPhotoDataUrl] = useState(null);
+  const [photoFile, setPhotoFile] = useState(null); // the real File, for uploading to the backend
   const [name, setName] = useState("");
   const [grade, setGrade] = useState("");
   const [room, setRoom] = useState("");
@@ -69,7 +70,7 @@ export default function AuthFlow({ onComplete }) {
           id: data.id,
           name: data.name,
           classLine: data.grade + " · Rm " + data.room_no,
-          photoDataUrl: null,
+          photoDataUrl: data.photo_path ? `${API_BASE}${data.photo_path}` : null,
         });
         return;
       }
@@ -119,9 +120,30 @@ export default function AuthFlow({ onComplete }) {
   function handlePhotoChange(e) {
     const file = e.target.files[0];
     if (!file) return;
+    setPhotoFile(file);
     const reader = new FileReader();
     reader.onload = () => setPhotoDataUrl(reader.result);
     reader.readAsDataURL(file);
+  }
+
+  // Uploads the selected photo (if any) to the real student record once a
+  // real database id exists, and returns the URL to show it from — the
+  // local data: URL preview is used as a fallback if this fails.
+  async function uploadPhotoIfSelected(studentId) {
+    if (!photoFile) return null;
+    try {
+      const formData = new FormData();
+      formData.append("photo", photoFile);
+      const res = await fetch(`${API_BASE}/api/students/${studentId}/photo`, {
+        method: "POST",
+        body: formData,
+      });
+      if (!res.ok) return null;
+      const data = await res.json();
+      return `${API_BASE}${data.photo_path}`;
+    } catch {
+      return null;
+    }
   }
 
   // Sign In calls the backend right away; Sign Up just moves to the profile
@@ -157,7 +179,7 @@ export default function AuthFlow({ onComplete }) {
         id: data.id,
         name: data.name,
         classLine: (data.grade || "Grade 8") + " · Rm " + (data.room_no || "214"),
-        photoDataUrl: null,
+        photoDataUrl: data.photo_path ? `${API_BASE}${data.photo_path}` : null,
       });
     } catch {
       setError("Could not reach the server. Is the backend running?");
@@ -191,11 +213,12 @@ export default function AuthFlow({ onComplete }) {
       } finally {
         setIsSubmitting(false);
       }
+      const uploadedPhotoUrl = await uploadPhotoIfSelected(googleStudent.id);
       onComplete({
         id: googleStudent.id,
         name: name.trim(),
         classLine: gradeVal + " · Rm " + roomVal,
-        photoDataUrl,
+        photoDataUrl: uploadedPhotoUrl || photoDataUrl,
       });
       return;
     }
@@ -220,11 +243,12 @@ export default function AuthFlow({ onComplete }) {
         setError(data.error || "Could not create account.");
         return;
       }
+      const uploadedPhotoUrl = await uploadPhotoIfSelected(data.id);
       onComplete({
         id: data.id,
         name: data.name,
         classLine: data.grade + " · Rm " + data.room_no,
-        photoDataUrl,
+        photoDataUrl: uploadedPhotoUrl || photoDataUrl,
       });
     } catch {
       setError("Could not reach the server. Is the backend running?");

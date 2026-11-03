@@ -3,10 +3,19 @@ import "./Dashboard.css";
 import Sidebar from "./Sidebar/Sidebar";
 import ClassSessionCard from "./ClassSessionCard/ClassSessionCard";
 import MoodHistoryCard from "./MoodHistoryCard/MoodHistoryCard";
+import MoodSummaryCard from "./MoodHistoryCard/MoodSummaryCard";
 import NutritionCard from "./NutritionCard/NutritionCard";
 import FocusBySubjectCard from "./FocusBySubjectCard/FocusBySubjectCard";
 import AlertsCard from "./AlertsCard/AlertsCard";
-import { MOODS, formatHistoryTimestamp, timeNow } from "../../data/moods";
+import PostureAlertsCard from "./AlertsCard/PostureAlertsCard";
+import StatRow from "./Overview/StatRow";
+import RecommendationCard from "./Overview/RecommendationCard";
+import QuickActionsCard from "./Overview/QuickActionsCard";
+import StudySummaryCard from "./Overview/StudySummaryCard";
+import MoodTrendCard from "./Overview/MoodTrendCard";
+import ProgressPage from "./Progress/ProgressPage";
+import SettingsPanel from "./SettingsPanel/SettingsPanel";
+import { MOODS, formatHistoryTimestamp, initials, timeNow } from "../../data/moods";
 
 const API_BASE = "http://localhost:3000";
 
@@ -16,6 +25,10 @@ const API_BASE = "http://localhost:3000";
 // repeats for every new batch of readings during a session.
 const CHECKIN_BATCH_SIZE = 3;
 
+// Posture follows the same "15 min reading, 45 min (3 readings) decision"
+// cadence as mood, rather than alerting on a single bad reading.
+const POSTURE_BATCH_SIZE = 3;
+
 const SEED_TIMELINE = [
   { moodName: "Neutral", when: "Mon 9:05 AM" }, { moodName: "Happy", when: "Mon 1:40 PM" },
   { moodName: "Sad", when: "Tue 8:55 AM" }, { moodName: "Neutral", when: "Tue 12:15 PM" },
@@ -24,14 +37,14 @@ const SEED_TIMELINE = [
   { moodName: "Happy", when: "Fri 9:00 AM" }, { moodName: "Happy", when: "Fri 1:20 PM" },
 ].map((e) => ({ mood: MOODS.find((m) => m.name === e.moodName), when: e.when }));
 
-export default function Dashboard({ student, onLogout }) {
+export default function Dashboard({ student, onLogout, theme, onToggleTheme }) {
   const [activeView, setActiveView] = useState("overview");
-  const [subjects, setSubjects] = useState([
-    { name: "Mathematics", score: 58 },
-    { name: "Science", score: 68 },
-    { name: "English", score: 74 },
-    { name: "History", score: 55 },
-  ]);
+  // Real per-subject focus % computed server-side from actual mood+session
+  // rows — not a locally nudged placeholder. Empty until real data exists.
+  const [subjects, setSubjects] = useState([]);
+  // Real minutes studied today, summed server-side from each session's
+  // actual started_at/ended_at — not an estimate.
+  const [studyMinutes, setStudyMinutes] = useState(0);
   const [session, setSession] = useState({ subject: null, running: false, id: null });
   const [latestMood, setLatestMood] = useState(MOODS[0]);
   const [moodUpdatedLabel, setMoodUpdatedLabel] = useState("Last updated Fri 1:20 PM");
@@ -42,26 +55,48 @@ export default function Dashboard({ student, onLogout }) {
   const [checkinError, setCheckinError] = useState("");
   const [lastResult, setLastResult] = useState(null);
   const [pendingBatch, setPendingBatch] = useState([]);
+  const [postureAlerts, setPostureAlerts] = useState([]);
+  const [pendingPostureBatch, setPendingPostureBatch] = useState([]);
 
-  // Loads this student's real mood/nutrition/alert history from MySQL once,
-  // on first load — replacing the hardcoded seed data with it whenever real
-  // rows exist. A brand-new account with no history yet keeps the seed data
-  // as a friendly starting point rather than showing an empty dashboard.
+  // Re-fetches real per-subject focus scores and today's real study minutes
+  // from the backend — called on load and again after every check-in reveal
+  // so both numbers reflect the database, not a locally nudged guess.
+  async function refreshFocusAndStudyTime() {
+    if (!student.id) return;
+    try {
+      const [focusRes, sessionsRes] = await Promise.all([
+        fetch(`${API_BASE}/api/students/${student.id}/focus`),
+        fetch(`${API_BASE}/api/students/${student.id}/sessions/today`),
+      ]);
+      const [focusData, sessionsData] = await Promise.all([focusRes.json(), sessionsRes.json()]);
+      setSubjects(focusData.map((f) => ({ name: f.subject, score: f.score })));
+      setStudyMinutes(sessionsData.totalMinutes || 0);
+    } catch {
+      // Keep whatever was last loaded if the backend isn't reachable.
+    }
+  }
+
+  // Loads this student's real mood/nutrition/alert/focus/study-time history
+  // from MySQL once, on first load — replacing the hardcoded seed data with
+  // it whenever real rows exist. A brand-new account with no history yet
+  // keeps the seed data as a friendly starting point, not an empty dashboard.
   useEffect(() => {
     if (!student.id) return;
     let cancelled = false;
 
     async function loadHistory() {
       try {
-        const [moodsRes, nutritionRes, alertsRes] = await Promise.all([
+        const [moodsRes, nutritionRes, alertsRes, postureAlertsRes] = await Promise.all([
           fetch(`${API_BASE}/api/students/${student.id}/moods`),
           fetch(`${API_BASE}/api/students/${student.id}/nutrition`),
           fetch(`${API_BASE}/api/students/${student.id}/alerts`),
+          fetch(`${API_BASE}/api/students/${student.id}/posture-alerts`),
         ]);
-        const [moodsData, nutritionData, alertsData] = await Promise.all([
+        const [moodsData, nutritionData, alertsData, postureAlertsData] = await Promise.all([
           moodsRes.json(),
           nutritionRes.json(),
           alertsRes.json(),
+          postureAlertsRes.json(),
         ]);
         if (cancelled) return;
 
@@ -78,6 +113,11 @@ export default function Dashboard({ student, onLogout }) {
           setMoodUpdatedLabel(`Last updated ${formatHistoryTimestamp(latest.detected_at)}`);
         }
         if (nutritionData.length) setSnacks(nutritionData);
+        if (postureAlertsData.length) {
+          setPostureAlerts(
+            postureAlertsData.map((a) => ({ subject: a.subject, time: formatHistoryTimestamp(a.sent_at) }))
+          );
+        }
         if (alertsData.length) {
           const toMood = (name) => MOODS.find((m) => m.name.toLowerCase() === String(name).toLowerCase()) || MOODS[0];
           setAlerts(
@@ -94,26 +134,18 @@ export default function Dashboard({ student, onLogout }) {
     }
 
     loadHistory();
+    refreshFocusAndStudyTime();
     return () => {
       cancelled = true;
     };
   }, [student.id]);
 
-  function show(view) {
-    return activeView === "overview" || activeView === view;
-  }
-  function focused(view) {
-    return activeView !== "overview" && activeView === view;
-  }
-
   async function handleStart(subjectName, durationMin) {
-    if (!subjects.some((s) => s.name === subjectName)) {
-      setSubjects((prev) => [...prev, { name: subjectName, score: 60 }]);
-    }
     setSession({ subject: subjectName, running: true, id: null });
     setCheckinError("");
     setLastResult(null);
     setPendingBatch([]);
+    setPendingPostureBatch([]);
 
     // Guest/Google/Apple accounts have no real database row (student.id is
     // null) — the session just stays local-only for them, same as before.
@@ -133,6 +165,13 @@ export default function Dashboard({ student, onLogout }) {
   }
 
   function handleStop() {
+    // Marks the real end time in the database so today's study-time total
+    // reflects how long the session actually ran.
+    if (session.id) {
+      fetch(`${API_BASE}/api/sessions/${session.id}/end`, { method: "PATCH" })
+        .then(refreshFocusAndStudyTime)
+        .catch(() => {});
+    }
     setSession({ subject: null, running: false, id: null });
   }
 
@@ -191,15 +230,11 @@ export default function Dashboard({ student, onLogout }) {
       setSnacks(winningEntry.foods);
       setLastResult(winningEntry);
 
-      if (session.subject) {
-        setSubjects((prev) =>
-          prev.map((s) =>
-            s.name === session.subject
-              ? { ...s, score: Math.max(0, Math.min(100, s.score + winningEntry.mood.valence)) }
-              : s
-          )
-        );
-      }
+      // Focus-by-subject and today's study time are both computed
+      // server-side from the mood/session rows this check-in just saved —
+      // re-fetch rather than nudge a local number.
+      refreshFocusAndStudyTime();
+
       if (winningEntry.mood.concerning) {
         setAlerts((prev) => [{ mood: winningEntry.mood, subject: session.subject, time: now }, ...prev]);
       }
@@ -210,38 +245,124 @@ export default function Dashboard({ student, onLogout }) {
     }
   }
 
+  // Saves one real posture reading (detected client-side by MediaPipe) and,
+  // once 3 of them have come in (45 real minutes), alerts the parent only
+  // if most of that batch was poor — a single slouch doesn't trigger a
+  // notification on its own, same reasoning as the mood batch above.
+  async function handlePostureCheck(status) {
+    if (!student.id) return;
+    try {
+      const res = await fetch(`${API_BASE}/api/posture`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ student_id: student.id, session_id: session.id || null, status }),
+      });
+      const data = await res.json();
+      if (!res.ok) return;
+
+      const newBatch = [...pendingPostureBatch, { posture_check_id: data.posture_check_id, status }];
+      if (newBatch.length < POSTURE_BATCH_SIZE) {
+        setPendingPostureBatch(newBatch);
+        return;
+      }
+      setPendingPostureBatch([]);
+
+      const poorCount = newBatch.filter((b) => b.status === "poor").length;
+      if (poorCount > newBatch.length / 2) {
+        const lastPoor = [...newBatch].reverse().find((b) => b.status === "poor");
+        await fetch(`${API_BASE}/api/posture/alert`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ posture_check_id: lastPoor.posture_check_id }),
+        });
+        setPostureAlerts((prev) => [{ subject: session.subject, time: timeNow() }, ...prev]);
+      }
+    } catch {
+      // Posture reporting failing shouldn't interrupt the study session.
+    }
+  }
+
   return (
     <div className="app-shell">
-      <Sidebar student={student} activeView={activeView} onNavigate={setActiveView} onLogout={onLogout} />
+      <Sidebar activeView={activeView} onNavigate={setActiveView} />
       <main className="main">
         <div className="topbar">
-          <h1 className="heading-font">Good morning, {student.name.split(" ")[0]}.</h1>
-          <p className="date mono">{new Date().toDateString()}</p>
+          <div>
+            <h1 className="heading-font">Hi, {student.name.split(" ")[0]}! 👋</h1>
+            <p className="date mono">Stay focused, eat healthy, and learn better.</p>
+          </div>
+          <div className="topbar-right">
+            <button
+              className="bell-btn"
+              type="button"
+              aria-label={alerts.length ? `${alerts.length} alerts` : "No alerts"}
+              onClick={() => setActiveView("moodfocus")}
+            >
+              🔔
+              {alerts.length > 0 && <span className="bell-dot" />}
+            </button>
+            <div className="topbar-user">
+              <div className="topbar-avatar">
+                {student.photoDataUrl ? <img src={student.photoDataUrl} alt="" /> : initials(student.name)}
+              </div>
+              <div>
+                <div className="topbar-user-name">{student.name.split(" ")[0]}</div>
+                <div className="topbar-user-class">{student.classLine.split(" · ")[0]}</div>
+              </div>
+            </div>
+          </div>
         </div>
+
+        {activeView === "overview" && (
+          <>
+            <StatRow latestMood={latestMood} studyMinutes={studyMinutes} />
+            <div className="overview-row">
+              <RecommendationCard snacks={snacks} />
+              <div className="overview-col">
+                <QuickActionsCard onNavigate={setActiveView} />
+                <StudySummaryCard latestMood={latestMood} nutritionOnTrack={!latestMood.concerning} studyMinutes={studyMinutes} />
+              </div>
+            </div>
+          </>
+        )}
 
         <section className="dash-grid">
           <ClassSessionCard
-            hidden={activeView !== "overview"}
+            hidden={activeView !== "study"}
             session={session}
             onStart={handleStart}
             onStop={handleStop}
             onCheckIn={handleCheckIn}
+            onPostureCheck={handlePostureCheck}
             checkingIn={checkingIn}
             checkinError={checkinError}
             result={lastResult}
             batchCount={pendingBatch.length}
             batchSize={CHECKIN_BATCH_SIZE}
           />
-          <MoodHistoryCard
-            hidden={!show("history")}
-            focused={focused("history")}
-            latestMood={latestMood}
-            moodUpdatedLabel={moodUpdatedLabel}
-            timeline={timeline}
-          />
-          <NutritionCard hidden={!show("nutrition")} focused={focused("nutrition")} snacks={snacks} />
-          <FocusBySubjectCard hidden={activeView !== "overview"} subjects={subjects} />
-          <AlertsCard hidden={!show("alerts")} focused={focused("alerts")} alerts={alerts} />
+
+          {activeView === "nutrition" && <NutritionCard focused snacks={snacks} />}
+
+          {activeView === "moodfocus" && (
+            <>
+              <MoodSummaryCard timeline={timeline} />
+              <MoodTrendCard entries={timeline} />
+              <MoodHistoryCard focused latestMood={latestMood} moodUpdatedLabel={moodUpdatedLabel} timeline={timeline} />
+              <AlertsCard focused alerts={alerts} />
+              <PostureAlertsCard alerts={postureAlerts} />
+            </>
+          )}
+
+          {activeView === "progress" && (
+            <>
+              <ProgressPage studentId={student.id} subjects={subjects} timeline={timeline} />
+              <FocusBySubjectCard subjects={subjects} />
+            </>
+          )}
+
+          {activeView === "settings" && (
+            <SettingsPanel student={student} theme={theme} onToggleTheme={onToggleTheme} onLogout={onLogout} />
+          )}
         </section>
       </main>
     </div>

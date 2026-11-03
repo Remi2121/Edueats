@@ -1,1 +1,21 @@
-.hydration-note{ font-size:0.82rem; color:var(--ink-soft); margin:14px 0 0; padding-top:12px; border-top:1px dashed var(--line); }
+.nutrition-tabs{ display:inline-flex; background:var(--surface-alt); border-radius:999px; padding:3px; }
+.nutrition-tab{
+  border:none; background:none; font-family:inherit; font-size:0.82rem; font-weight:600;
+  padding:7px 18px; border-radius:999px; cursor:pointer; color:var(--ink-soft);
+}
+.nutrition-tab.active{ background:var(--accent); color:var(--accent-contrast); }
+
+.food-cards{ display:flex; flex-wrap:wrap; gap:10px; margin-bottom:16px; }
+.food-card{
+  display:flex; align-items:center; gap:8px; padding:10px 14px; border-radius:12px;
+  background:var(--surface-alt); border:1.5px solid transparent; cursor:pointer; font-family:inherit;
+}
+.food-card:hover{ background:color-mix(in srgb, var(--surface-alt) 60%, var(--line)); }
+.food-card.selected{ border-color:var(--accent); background:color-mix(in srgb, var(--accent) 14%, var(--surface-alt)); }
+.food-card-icon{ font-size:1.1rem; }
+.food-card-name{ font-size:0.84rem; font-weight:600; }
+
+.nutrition-details{ border-top:1px dashed var(--line); padding-top:14px; }
+.nutrient-rows{ display:flex; flex-direction:column; gap:8px; }
+.nutrient-row{ display:flex; justify-content:space-between; font-size:0.86rem; }
+.nutrient-row span:first-child{ color:var(--ink-soft); }

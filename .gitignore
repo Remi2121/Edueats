@@ -11,11 +11,15 @@ __pycache__/
 .venv/
 venv/
 env/
+*.keras
+*.h5
+ml/logs/
 
 # Node
 node_modules/
 npm-debug.log*
 backend/uploads/
+backend/photos/
 
 # Secrets / config
 .env
@@ -28,7 +32,3 @@ kaggle.json
 .vscode/
 .DS_Store
 Thumbs.db
-
-*.keras
-*.h5
-ml/logs/

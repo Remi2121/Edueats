@@ -67,7 +67,8 @@ describe("App", () => {
     await signUpAndReachProfile();
     await userEvent.click(screen.getByText("Save & Continue"));
     await screen.findByText("Class Session");
-    await userEvent.click(screen.getByText("Log out"));
+    await userEvent.click(screen.getByText("Settings")); // Log Out now lives on the Settings page
+    await userEvent.click(screen.getByText("Log Out"));
     expect(screen.getByText("Sign in to EduEats")).toBeInTheDocument();
   });
 
@@ -90,7 +91,8 @@ describe("App", () => {
     await signUpAndReachProfile();
     await userEvent.click(screen.getByText("Save & Continue"));
     await screen.findByText("Class Session");
-    await userEvent.click(screen.getByText("Log out"));
+    await userEvent.click(screen.getByText("Settings")); // Log Out now lives on the Settings page
+    await userEvent.click(screen.getByText("Log Out"));
     unmount();
 
     render(<App />);

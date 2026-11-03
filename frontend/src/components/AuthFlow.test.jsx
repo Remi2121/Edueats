@@ -74,6 +74,53 @@ describe("AuthFlow", () => {
     );
   });
 
+  it("uploads a selected photo to the real student record after signing up", async () => {
+    const fetchMock = vi.fn((url) => {
+      if (url.endsWith("/api/signup")) {
+        return Promise.resolve({
+          ok: true,
+          json: () => Promise.resolve({ id: 11, name: "Test Student", grade: "Grade 9", room_no: "301" }),
+        });
+      }
+      if (url.endsWith("/api/students/11/photo")) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ photo_path: "/photos/11-123.png" }) });
+      }
+      throw new Error(`unexpected fetch to ${url}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+
+    const onComplete = vi.fn();
+    render(<AuthFlow onComplete={onComplete} />);
+
+    await userEvent.click(screen.getByText("Sign Up"));
+    await userEvent.type(screen.getByLabelText(/full name/i), "Test Student");
+    await userEvent.type(screen.getByLabelText(/email/i), "test@school.test");
+    await userEvent.type(screen.getByLabelText(/password/i), "secret123");
+    await userEvent.click(screen.getByText("Create Account"));
+    await screen.findByText("Set up your profile");
+
+    const photoFile = new File(["fake-image-bytes"], "me.png", { type: "image/png" });
+    const fileInput = document.querySelector(".photo-input");
+    await userEvent.upload(fileInput, photoFile);
+
+    await userEvent.type(screen.getByLabelText(/grade \/ class/i), "Grade 9");
+    await userEvent.type(screen.getByLabelText(/room no/i), "301");
+    await userEvent.click(screen.getByText("Save & Continue"));
+
+    await waitFor(() =>
+      expect(fetchMock).toHaveBeenCalledWith(
+        "http://localhost:3000/api/students/11/photo",
+        expect.objectContaining({ method: "POST" })
+      )
+    );
+    expect(onComplete).toHaveBeenCalledWith({
+      id: 11,
+      name: "Test Student",
+      classLine: "Grade 9 · Rm 301",
+      photoDataUrl: "http://localhost:3000/photos/11-123.png",
+    });
+  });
+
   it("goes back to login when Back is clicked from the Sign Up profile step", async () => {
     render(<AuthFlow onComplete={() => {}} />);
     await userEvent.click(screen.getByText("Sign Up"));

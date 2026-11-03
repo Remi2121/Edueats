@@ -7,6 +7,11 @@ export default function FocusBySubjectCard({ hidden, subjects }) {
       <h2 className="heading-font">Focus by Subject</h2>
       <p className="section-label">Based on mood during each class today</p>
       <div className="subject-bar-list">
+        {sorted.length === 0 && (
+          <p className="section-label" style={{ textTransform: "none", letterSpacing: "normal" }}>
+            No check-ins during a class session yet — scores appear once you check in during Study Session.
+          </p>
+        )}
         {sorted.map((s, idx) => (
           <div key={s.name} className={"subject-bar-row" + (idx === 0 ? " top" : "")}>
             <span className="subject-bar-label">{s.name}</span>

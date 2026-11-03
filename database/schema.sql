@@ -24,6 +24,7 @@ CREATE TABLE IF NOT EXISTS sessions (
     subject VARCHAR(100) NOT NULL,
     duration_min INT NOT NULL,
     started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    ended_at TIMESTAMP NULL,
     FOREIGN KEY (student_id) REFERENCES students(id)
 );
 
@@ -52,4 +53,25 @@ CREATE TABLE IF NOT EXISTS alerts (
     mood_id INT NOT NULL,
     sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (mood_id) REFERENCES moods(id)
+);
+
+-- one row per posture check — detected client-side (MediaPipe Pose, running
+-- on the live webcam feed in the browser) and reported to the backend
+-- periodically, same cadence as mood check-ins
+CREATE TABLE IF NOT EXISTS posture_checks (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    student_id INT NOT NULL,
+    session_id INT,
+    status ENUM('good', 'poor') NOT NULL,
+    checked_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (student_id) REFERENCES students(id),
+    FOREIGN KEY (session_id) REFERENCES sessions(id)
+);
+
+-- alerts sent to the parent for poor posture
+CREATE TABLE IF NOT EXISTS posture_alerts (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    posture_check_id INT NOT NULL,
+    sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (posture_check_id) REFERENCES posture_checks(id)
 );

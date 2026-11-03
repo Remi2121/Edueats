@@ -11,20 +11,33 @@ const guestStudent = { id: null, name: "Luke Remingan", classLine: "Grade 8 · R
 
 const fakeStream = { getTracks: () => [{ stop: () => {} }] };
 
-// Dashboard fetches /moods, /nutrition, /alerts automatically on mount for
-// any real student — those are routed separately here (always answered with
-// empty history, so tests keep seeing the seed/default data) so they don't
-// silently eat up slots meant for the session/check-in response sequence.
+// Dashboard fetches /moods, /nutrition, /alerts, /focus, /sessions/today
+// automatically on mount for any real student — those are routed separately
+// here (always answered with empty history) so they don't silently eat up
+// slots meant for the session/check-in response sequence.
 function mockFetchSequence(responses) {
   let call = 0;
-  return vi.fn((url) => {
-    if (typeof url === "string" && /\/(moods|nutrition|alerts)$/.test(url)) {
+  return vi.fn((url, options) => {
+    if (typeof url === "string" && /\/(moods|nutrition|alerts|focus)$/.test(url)) {
       return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
+    }
+    if (typeof url === "string" && url.endsWith("/sessions/today")) {
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({ totalMinutes: 0, sessions: [] }) });
+    }
+    if (typeof url === "string" && url.includes("/sessions/week")) {
+      return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
+    }
+    if (typeof url === "string" && /\/sessions\/\d+\/end$/.test(url)) {
+      return Promise.resolve({ ok: true, json: () => Promise.resolve({}) });
     }
     const r = responses[Math.min(call, responses.length - 1)] || { body: {} };
     call += 1;
     return Promise.resolve({ ok: r.ok !== false, json: () => Promise.resolve(r.body) });
   });
+}
+
+async function goToStudySession() {
+  await userEvent.click(screen.getByText("Study Session"));
 }
 
 beforeEach(() => {
@@ -49,34 +62,62 @@ afterEach(() => {
 describe("Dashboard (integration)", () => {
   it("greets the student by first name", () => {
     render(<Dashboard student={student} onLogout={() => {}} />);
-    expect(screen.getByText("Good morning, Luke.")).toBeInTheDocument();
+    expect(screen.getByText("Hi, Luke! 👋")).toBeInTheDocument();
   });
 
-  it("shows every card on the overview view", () => {
+  it("shows the overview summary, not the full cards", () => {
     render(<Dashboard student={student} onLogout={() => {}} />);
-    expect(screen.getByText("Class Session")).toBeInTheDocument();
+    expect(screen.getByText("Current Mood")).toBeInTheDocument();
+    expect(screen.getByText("Today's Recommendation")).toBeInTheDocument();
+    expect(screen.getByText("Quick Actions")).toBeInTheDocument();
+    expect(screen.getByText("Study's Summary")).toBeInTheDocument();
+    // The full Nutrition/Mood History/Focus/Alerts pages only show on their
+    // own dedicated nav views now, not bundled into the overview.
+    expect(screen.queryByRole("heading", { name: "My Nutrition" })).not.toBeInTheDocument();
+    expect(screen.queryByText("Recent Alerts to Parent")).not.toBeInTheDocument();
+  });
+
+  it("Study Session nav shows the live class session card", async () => {
+    render(<Dashboard student={student} onLogout={() => {}} />);
+    await goToStudySession();
+    expect(screen.getByText("Class Session").closest(".dash-card")).not.toHaveClass("hide");
+  });
+
+  it("My Nutrition nav shows the nutrition card", async () => {
+    render(<Dashboard student={student} onLogout={() => {}} />);
+    await userEvent.click(screen.getByText("My Nutrition"));
+    expect(screen.getByRole("heading", { name: "My Nutrition" })).toBeInTheDocument();
+  });
+
+  it("Mood & Focus nav shows mood history and alerts together", async () => {
+    render(<Dashboard student={student} onLogout={() => {}} />);
+    await userEvent.click(screen.getByText("Mood & Focus"));
     expect(screen.getByRole("heading", { name: "Mood History" })).toBeInTheDocument();
-    expect(screen.getByText("Nutrition Snapshot")).toBeInTheDocument();
-    expect(screen.getByText("Focus by Subject")).toBeInTheDocument();
     expect(screen.getByText("Recent Alerts to Parent")).toBeInTheDocument();
   });
 
-  it("isolates a single card when its sidebar nav link is clicked", async () => {
+  it("My Progress nav shows focus by subject", async () => {
     render(<Dashboard student={student} onLogout={() => {}} />);
+    await userEvent.click(screen.getByText("My Progress"));
+    expect(screen.getByText("Focus by Subject")).toBeInTheDocument();
+  });
 
-    await userEvent.click(screen.getByRole("button", { name: "Nutrition" }));
-
-    expect(screen.getByText("Nutrition Snapshot").closest(".dash-card")).not.toHaveClass("hide");
-    expect(screen.getByRole("heading", { name: "Mood History" }).closest(".dash-card")).toHaveClass("hide");
-    expect(screen.getByText("Class Session").closest(".dash-card")).toHaveClass("hide");
+  it("Settings nav shows the settings panel with a working theme toggle", async () => {
+    const onToggleTheme = vi.fn();
+    render(<Dashboard student={student} onLogout={() => {}} theme="light" onToggleTheme={onToggleTheme} />);
+    await userEvent.click(screen.getByText("Settings"));
+    expect(screen.getByText("Theme")).toBeInTheDocument();
+    await userEvent.click(screen.getByText("Theme"));
+    expect(onToggleTheme).toHaveBeenCalledOnce();
   });
 
   it("starting a session creates a real backend session for a real student", async () => {
     vi.stubGlobal("fetch", mockFetchSequence([{ body: { id: 99 } }]));
     render(<Dashboard student={student} onLogout={() => {}} />);
+    await goToStudySession();
 
     await userEvent.type(screen.getByLabelText(/subject/i), "Mathematics");
-    await userEvent.click(screen.getByText("Start Class Session"));
+    await userEvent.click(screen.getByText("Start Study Session"));
 
     expect(fetch).toHaveBeenCalledWith(
       "http://localhost:3000/api/sessions",
@@ -84,11 +125,27 @@ describe("Dashboard (integration)", () => {
     );
   });
 
+  it("ending a session marks it finished on the backend", async () => {
+    vi.stubGlobal("fetch", mockFetchSequence([{ body: { id: 99 } }]));
+    render(<Dashboard student={student} onLogout={() => {}} />);
+    await goToStudySession();
+
+    await userEvent.click(screen.getByText("Start Study Session"));
+    await screen.findByLabelText("Stop Session");
+    await userEvent.click(screen.getByLabelText("Stop Session"));
+
+    expect(fetch).toHaveBeenCalledWith(
+      "http://localhost:3000/api/sessions/99/end",
+      expect.objectContaining({ method: "PATCH" })
+    );
+  });
+
   it("does not call the backend to start a session for a guest (no real id)", async () => {
     vi.stubGlobal("fetch", vi.fn());
     render(<Dashboard student={guestStudent} onLogout={() => {}} />);
+    await goToStudySession();
 
-    await userEvent.click(screen.getByText("Start Class Session"));
+    await userEvent.click(screen.getByText("Start Study Session"));
 
     expect(fetch).not.toHaveBeenCalled();
   });
@@ -96,18 +153,19 @@ describe("Dashboard (integration)", () => {
   it("blocks check-in for a guest and shows a message instead of calling the backend", async () => {
     vi.stubGlobal("fetch", vi.fn());
     render(<Dashboard student={guestStudent} onLogout={() => {}} />);
+    await goToStudySession();
 
     // Check-in now fires automatically once the camera is ready — no click
     // needed to trigger (and block) it. The real interval is 15 minutes, so
     // the test-only interval override is used to make this happen quickly.
     await userEvent.type(screen.getByLabelText(/check-in interval/i), "1");
-    await userEvent.click(screen.getByText("Start Class Session"));
+    await userEvent.click(screen.getByText("Start Study Session"));
 
     expect(await screen.findByText(/sign up with email & password/i, {}, { timeout: 3000 })).toBeInTheDocument();
     expect(fetch).not.toHaveBeenCalled();
   });
 
-  it("combines 3 readings by majority vote before showing mood, nutrition, and focus score", async () => {
+  it("combines 3 readings by majority vote before revealing a result", async () => {
     // 3 real readings (each ticking on the 1s test interval) need more than
     // vitest's default 5s per-test timeout.
     vi.stubGlobal(
@@ -118,22 +176,15 @@ describe("Dashboard (integration)", () => {
       ])
     );
     render(<Dashboard student={student} onLogout={() => {}} />);
+    await goToStudySession();
 
-    // Check-in now fires automatically once the camera is ready — the real
-    // interval is 15 minutes, so the test-only interval override (see
-    // ClassSessionCard's "TESTING OVERRIDE" field) is used here instead.
-    // Nothing shows until all 3 readings in the batch are collected.
     await userEvent.type(screen.getByLabelText(/check-in interval/i), "1");
-    await userEvent.click(screen.getByText("Start Class Session")); // defaults subject to Mathematics
+    await userEvent.click(screen.getByText("Start Study Session")); // defaults subject to Mathematics
 
-    // "🙂 Happy" alone would also match the seed/default mood shown before
-    // any real check-in, so check the updated-label text instead — that only
-    // changes once a real combined result lands.
-    expect(await screen.findByText(/Last updated today/, {}, { timeout: 6000 })).toBeInTheDocument();
-    expect(screen.getByText("🙂 Happy")).toBeInTheDocument();
-    // "Apple slices" appears both in the Nutrition Snapshot card and the
-    // ClassSessionCard's own inline result chip — both showing it is correct.
-    expect(screen.getAllByText("Apple slices").length).toBeGreaterThan(0);
+    expect(await screen.findByText(/Happy detected/, {}, { timeout: 6000 })).toBeInTheDocument();
+    expect(screen.getByText("Apple slices")).toBeInTheDocument();
+
+    await userEvent.click(screen.getByText("Mood & Focus"));
     expect(screen.getByText("No alerts sent yet today.")).toBeInTheDocument();
   }, 10000);
 
@@ -146,12 +197,13 @@ describe("Dashboard (integration)", () => {
       ])
     );
     render(<Dashboard student={student} onLogout={() => {}} />);
+    await goToStudySession();
     await userEvent.type(screen.getByLabelText(/check-in interval/i), "1");
-    await userEvent.click(screen.getByText("Start Class Session"));
+    await userEvent.click(screen.getByText("Start Study Session"));
 
-    expect(
-      await screen.findByText(/Sad detected during Mathematics/, {}, { timeout: 6000 })
-    ).toBeInTheDocument();
+    await screen.findByText(/Sad detected/, {}, { timeout: 6000 });
+    await userEvent.click(screen.getByText("Mood & Focus"));
+    expect(screen.getByText(/Sad detected during Mathematics/)).toBeInTheDocument();
   }, 10000);
 
   it("does not reveal a result after only 1 or 2 of the 3 readings", async () => {
@@ -163,20 +215,20 @@ describe("Dashboard (integration)", () => {
       ])
     );
     render(<Dashboard student={student} onLogout={() => {}} />);
+    await goToStudySession();
     await userEvent.type(screen.getByLabelText(/check-in interval/i), "1");
-    await userEvent.click(screen.getByText("Start Class Session"));
+    await userEvent.click(screen.getByText("Start Study Session"));
 
-    // Wait roughly long enough for 1-2 readings, but not all 3. The
-    // updated-label text only changes once a combined result is revealed —
-    // "🙂 Happy" alone isn't useful here since it's also the seed/default.
+    // Wait roughly long enough for 1-2 readings, but not all 3.
     await new Promise((r) => setTimeout(r, 1800));
-    expect(screen.queryByText(/Last updated today/)).not.toBeInTheDocument();
+    expect(screen.queryByText(/Happy detected/)).not.toBeInTheDocument();
   });
 
-  it("calls onLogout when the sidebar logout button is clicked", async () => {
+  it("calls onLogout when Log Out is clicked on the Settings page", async () => {
     const onLogout = vi.fn();
     render(<Dashboard student={student} onLogout={onLogout} />);
-    await userEvent.click(screen.getByText("Log out"));
+    await userEvent.click(screen.getByText("Settings"));
+    await userEvent.click(screen.getByText("Log Out"));
     expect(onLogout).toHaveBeenCalledOnce();
   });
 });

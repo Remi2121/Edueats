@@ -46,7 +46,14 @@ export default function App() {
         onDashboard={screen === "dashboard"}
       />
       {screen === "auth" && <AuthFlow onComplete={handleAuthComplete} />}
-      {screen === "dashboard" && student && <Dashboard student={student} onLogout={handleLogout} />}
+      {screen === "dashboard" && student && (
+        <Dashboard
+          student={student}
+          onLogout={handleLogout}
+          theme={theme}
+          onToggleTheme={() => setTheme((t) => (t === "dark" ? "light" : "dark"))}
+        />
+      )}
     </>
   );
 }

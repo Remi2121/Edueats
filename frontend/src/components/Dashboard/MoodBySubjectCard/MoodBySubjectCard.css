@@ -1,0 +1,7 @@
+.mood-subject-list{ display:flex; flex-direction:column; gap:14px; }
+.mood-subject-row{ display:flex; flex-direction:column; gap:6px; }
+.mood-subject-head{ display:flex; justify-content:space-between; align-items:center; }
+.mood-subject-label{ font-size:0.84rem; font-weight:600; }
+.mood-subject-dominant{ font-size:0.8rem; color:var(--ink-soft); display:inline-flex; align-items:center; gap:4px; }
+.mood-subject-track{ display:flex; height:10px; border-radius:999px; overflow:hidden; background:var(--surface-alt); }
+.mood-subject-segment{ display:block; height:100%; }

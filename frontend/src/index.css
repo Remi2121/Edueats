@@ -1,10 +1,12 @@
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@700;800&family=DM+Sans:wght@400;500;600;700&display=swap');
+
 :root{
-  --bg:#EFF3F6; --surface:#FFFFFF; --surface-alt:#E4ECF1;
-  --ink:#16241D; --ink-soft:#59695F; --accent:#17A98C; --accent2:#6CB33F;
-  --accent-contrast:#FFFFFF; --line:#C9D6DE;
-  --brand-blue:#2F6FCB; --brand-green:#6CB33F;
+  --bg:#F3FAF6; --surface:#FFFFFF; --surface-alt:#E8FFF1;
+  --ink:#122B25; --ink-soft:#71827B; --accent:#07804F; --accent2:#8DF0B2;
+  --accent-contrast:#FFFFFF; --line:#E2EEE7;
+  --brand-blue:#2F6FCB; --brand-green:#07804F;
   --apple-bg:#16241D; --apple-ink:#FFFFFF;
-  --shadow: 0 1px 2px rgba(20,30,25,0.04), 0 8px 20px -8px rgba(20,30,25,0.10);
+  --shadow: 0 16px 45px rgba(6,61,53,0.10);
 
   --mood-happy-bg:#FBEBCB;   --mood-happy-ink:#8A5A12;
   --mood-sad-bg:#DCE7F5;     --mood-sad-ink:#2E5386;
@@ -16,12 +18,12 @@
 }
 @media (prefers-color-scheme: dark){
   :root:not([data-theme="light"]){
-    --bg:#13251F; --surface:#1E3129; --surface-alt:#2A4038;
-    --ink:#E7F3EC; --ink-soft:#9FC2AE; --accent:#3ECDB0; --accent2:#8AD65B;
-    --accent-contrast:#0B2420; --line:#3A4B41;
-    --brand-blue:#5B92E0; --brand-green:#8AD65B;
+    --bg:#0B1915; --surface:#172A23; --surface-alt:#203A2E;
+    --ink:#F4FFF8; --ink-soft:#B0C0B7; --accent:#2FBE85; --accent2:#8DF0B2;
+    --accent-contrast:#06241B; --line:#29453A;
+    --brand-blue:#5B92E0; --brand-green:#8DF0B2;
     --apple-bg:#E7F3EC; --apple-ink:#0E1512;
-    --shadow: 0 1px 2px rgba(0,0,0,0.2), 0 8px 20px -8px rgba(0,0,0,0.35);
+    --shadow: 0 16px 45px rgba(0,0,0,0.35);
     --mood-happy-bg:#4A3B18;   --mood-happy-ink:#F2CF8E;
     --mood-sad-bg:#22344E;     --mood-sad-ink:#B7D0F0;
     --mood-angry-bg:#4A2420;   --mood-angry-ink:#F0B4AA;
@@ -32,12 +34,12 @@
   }
 }
 :root[data-theme="dark"]{
-  --bg:#13251F; --surface:#1E3129; --surface-alt:#2A4038;
-  --ink:#E7F3EC; --ink-soft:#9FC2AE; --accent:#3ECDB0; --accent2:#8AD65B;
-  --accent-contrast:#0B2420; --line:#3A4B41;
-  --brand-blue:#5B92E0; --brand-green:#8AD65B;
+  --bg:#0B1915; --surface:#172A23; --surface-alt:#203A2E;
+  --ink:#F4FFF8; --ink-soft:#B0C0B7; --accent:#2FBE85; --accent2:#8DF0B2;
+  --accent-contrast:#06241B; --line:#29453A;
+  --brand-blue:#5B92E0; --brand-green:#8DF0B2;
   --apple-bg:#E7F3EC; --apple-ink:#0E1512;
-  --shadow: 0 1px 2px rgba(0,0,0,0.2), 0 8px 20px -8px rgba(0,0,0,0.35);
+  --shadow: 0 16px 45px rgba(0,0,0,0.35);
   --mood-happy-bg:#4A3B18;   --mood-happy-ink:#F2CF8E;
   --mood-sad-bg:#22344E;     --mood-sad-ink:#B7D0F0;
   --mood-angry-bg:#4A2420;   --mood-angry-ink:#F0B4AA;
@@ -49,9 +51,9 @@
 
 *{ box-sizing:border-box; }
 html,body{ margin:0; height:100%; }
-body{ background:var(--bg); color:var(--ink); font-family:"Segoe UI", system-ui, -apple-system, sans-serif; }
+body{ background:var(--bg); color:var(--ink); font-family:"DM Sans", "Segoe UI", system-ui, -apple-system, sans-serif; }
 #root{ min-height:100%; }
-.heading-font{ font-weight:700; letter-spacing:-0.01em; }
+.heading-font{ font-family:"Manrope", "Segoe UI", sans-serif; font-weight:800; letter-spacing:-0.02em; }
 .mono{ font-family:"SF Mono","Consolas","Cascadia Mono",monospace; font-variant-numeric:tabular-nums; }
 
 @keyframes fadeSlideIn{ from{ opacity:0; transform:translateY(8px); } to{ opacity:1; transform:translateY(0); } }
@@ -65,8 +67,8 @@ a, button, input, .card, .theme-toggle svg{
 .brand-name{ font-weight:700; font-size:1.1rem; letter-spacing:0.01em; }
 
 .btn{
-  width:100%; border:none; border-radius:9px; padding:12px 16px;
-  font-size:0.92rem; font-weight:600; cursor:pointer; font-family:inherit; margin-top:8px;
+  width:100%; border:none; border-radius:13px; padding:12px 16px;
+  font-size:0.92rem; font-weight:700; cursor:pointer; font-family:inherit; margin-top:8px;
 }
 .btn:focus-visible{ outline:3px solid var(--accent); outline-offset:2px; }
 .btn-primary{ background:var(--accent); color:var(--accent-contrast); }
@@ -84,7 +86,7 @@ a, button, input, .card, .theme-toggle svg{
   letter-spacing:0.03em; text-transform:uppercase; margin-bottom:6px;
 }
 .field input, .field select{
-  width:100%; padding:11px 13px; border-radius:9px; border:1px solid var(--line);
+  width:100%; padding:11px 13px; border-radius:12px; border:1px solid var(--line);
   background:var(--surface); color:var(--ink); font-size:0.92rem; font-family:inherit;
 }
 .field input:focus, .field select:focus{ outline:2px solid var(--accent); outline-offset:1px; }
@@ -92,4 +94,4 @@ a, button, input, .card, .theme-toggle svg{
 .field-row .field{ flex:1; }
 
 .snacks{ display:flex; flex-wrap:wrap; gap:6px; }
-.snack{ background:var(--surface-alt); border-radius:8px; padding:5px 10px; font-size:0.8rem; }
+.snack{ background:var(--surface-alt); border-radius:20px; padding:6px 12px; font-size:0.8rem; }

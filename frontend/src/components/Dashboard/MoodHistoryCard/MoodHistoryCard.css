@@ -1,7 +1,7 @@
 .mood-history-date-row{ display:flex; align-items:center; gap:10px; margin-bottom:14px; flex-wrap:wrap; }
 .mood-history-date-row input[type="date"],
 .mood-history-date-row input[type="time"]{
-  padding:7px 10px; border-radius:8px; border:1px solid var(--line);
+  padding:7px 10px; border-radius:11px; border:1px solid var(--line);
   background:var(--surface); color:var(--ink); font-family:inherit; font-size:0.84rem;
 }
 .mood-history-time-clear{
@@ -27,7 +27,7 @@
 .mood-history-more{ font-size:0.76rem; color:var(--ink-soft); align-self:center; }
 
 .mood-history-food-detail{
-  margin-top:6px; padding:8px 10px; background:var(--surface-alt); border-radius:9px;
+  margin-top:6px; padding:8px 10px; background:var(--surface-alt); border-radius:13px;
   max-width:280px; font-size:0.74rem;
 }
 .mood-history-nutrient-rows{ display:flex; flex-wrap:wrap; gap:6px 12px; color:var(--ink-soft); margin-bottom:4px; }

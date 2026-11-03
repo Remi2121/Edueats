@@ -5,6 +5,7 @@ import Sidebar from "./Sidebar/Sidebar";
 import ClassSessionCard from "./ClassSessionCard/ClassSessionCard";
 import MoodHistoryCard from "./MoodHistoryCard/MoodHistoryCard";
 import MoodSummaryCard from "./MoodHistoryCard/MoodSummaryCard";
+import MoodBySubjectCard from "./MoodBySubjectCard/MoodBySubjectCard";
 import NutritionCard from "./NutritionCard/NutritionCard";
 import FocusBySubjectCard from "./FocusBySubjectCard/FocusBySubjectCard";
 import AlertsCard from "./AlertsCard/AlertsCard";
@@ -372,7 +373,7 @@ export default function Dashboard({ student, onLogout, theme, onToggleTheme }) {
 
   return (
     <div className="app-shell">
-      <Sidebar activeView={activeView} onNavigate={setActiveView} />
+      <Sidebar activeView={activeView} onNavigate={setActiveView} onLogout={onLogout} />
       <main className="main">
         <div className="topbar">
           <div>
@@ -440,6 +441,7 @@ export default function Dashboard({ student, onLogout, theme, onToggleTheme }) {
           {activeView === "moodfocus" && (
             <>
               <MoodSummaryCard studentId={student.id} />
+              <MoodBySubjectCard studentId={student.id} />
               <MoodTrendCard entries={timeline} />
               <MoodHistoryCard focused studentId={student.id} />
               <AlertsCard focused alerts={alerts} />

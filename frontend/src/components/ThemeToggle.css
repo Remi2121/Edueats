@@ -14,7 +14,7 @@
    icon, not floating over the page — the fixed/floating style above is only
    for the auth screens, which have no topbar of their own. */
 .theme-toggle.on-dashboard{
-  position:static; width:38px; height:38px; box-shadow:none; flex-shrink:0;
+  position:static; width:42px; height:42px; border-radius:14px; box-shadow:none; flex-shrink:0;
 }
 
 @media (prefers-reduced-motion: no-preference){

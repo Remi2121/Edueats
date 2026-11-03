@@ -1,0 +1,80 @@
+EDUEATS — HOW TO RUN THIS PROJECT MANUALLY
+============================================
+
+You need 2 separate terminal windows open at the same time (one for the
+backend, one for the frontend). Both start from a plain PowerShell prompt
+like this:
+
+    PS C:\Users\Remiiii>
+
+
+STEP 0 — Make sure MySQL is running (only needed if it isn't already)
+-----------------------------------------------------------------------
+Open PowerShell AS ADMINISTRATOR and run:
+
+    net start MySQL95
+
+(If it says the service is already running, that's fine — you're good.)
+
+
+STEP 1 — Start the backend (Terminal #1)
+-----------------------------------------------------------------------
+Starting from:
+
+    PS C:\Users\Remiiii>
+
+Type:
+
+    cd Desktop\Edueats\backend
+    node server.js
+
+You should see this line appear:
+
+    EduEats backend running on http://localhost:3000
+
+Leave this terminal window open and running — do not close it or press
+Ctrl+C. This is your backend server.
+
+
+STEP 2 — Start the frontend (Terminal #2 — a NEW separate window)
+-----------------------------------------------------------------------
+Open a second, brand-new PowerShell window. Starting from:
+
+    PS C:\Users\Remiiii>
+
+Type:
+
+    cd Desktop\Edueats\frontend
+    npm run dev
+
+You should see Vite print something like:
+
+    Local:   http://localhost:5173/
+
+Leave this terminal window open and running too.
+
+
+STEP 3 — Open the app
+-----------------------------------------------------------------------
+Open your browser and go to:
+
+    http://localhost:5173
+
+Both the backend (Terminal #1) and frontend (Terminal #2) must stay
+running at the same time for the app to work properly.
+
+
+TO STOP THE APP
+-----------------------------------------------------------------------
+Click into each terminal window and press Ctrl+C, then close both windows.
+
+
+TROUBLESHOOTING
+-----------------------------------------------------------------------
+- If Terminal #1 shows a database connection error, MySQL probably isn't
+  running — go back to Step 0.
+- If a terminal says a port (3000 or 5173) is already in use, it means a
+  previous run is still open somewhere — find that old terminal and press
+  Ctrl+C there first, or close it, then try again.
+- backend\.env must already exist with the real database password inside
+  it — don't delete or rename that file.

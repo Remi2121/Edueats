@@ -8,7 +8,7 @@
 .nutrition-date-row{ display:flex; align-items:center; gap:10px; margin-bottom:10px; flex-wrap:wrap; }
 .nutrition-date-row input[type="date"],
 .nutrition-date-row input[type="time"]{
-  padding:7px 10px; border-radius:8px; border:1px solid var(--line);
+  padding:7px 10px; border-radius:11px; border:1px solid var(--line);
   background:var(--surface); color:var(--ink); font-family:inherit; font-size:0.84rem;
 }
 .nutrition-time-clear{
@@ -47,7 +47,7 @@
 
 .food-log-form{ align-items:flex-start; margin-bottom:4px; }
 .food-log-form .field{ margin-bottom:0; }
-.food-log-btn{ width:auto; flex-shrink:0; padding:11px 20px; border-radius:9px; white-space:nowrap; margin-top:0; }
+.food-log-btn{ width:auto; flex-shrink:0; padding:11px 20px; border-radius:13px; white-space:nowrap; margin-top:0; }
 
 .food-log-list{ list-style:none; margin:10px 0 0; padding:0; display:flex; flex-direction:column; gap:10px; }
 .food-log-item{ display:flex; align-items:center; gap:10px; font-size:0.86rem; }

@@ -16,6 +16,7 @@ import MoodTrendCard from "./Overview/MoodTrendCard";
 import ProgressPage from "./Progress/ProgressPage";
 import SettingsPanel from "./SettingsPanel/SettingsPanel";
 import { MOODS, formatHistoryTimestamp, initials, timeNow } from "../../data/moods";
+import { notify } from "../../data/preferences";
 
 const API_BASE = "http://localhost:3000";
 
@@ -237,6 +238,7 @@ export default function Dashboard({ student, onLogout, theme, onToggleTheme }) {
 
       if (winningEntry.mood.concerning) {
         setAlerts((prev) => [{ mood: winningEntry.mood, subject: session.subject, time: now }, ...prev]);
+        notify("EduEats — Mood Alert", `${winningEntry.mood.name} detected during ${session.subject}`);
       }
     } catch {
       setCheckinError("Could not reach the server. Is the backend running?");
@@ -276,6 +278,7 @@ export default function Dashboard({ student, onLogout, theme, onToggleTheme }) {
           body: JSON.stringify({ posture_check_id: lastPoor.posture_check_id }),
         });
         setPostureAlerts((prev) => [{ subject: session.subject, time: timeNow() }, ...prev]);
+        notify("EduEats — Posture Alert", `Poor posture detected during ${session.subject}`);
       }
     } catch {
       // Posture reporting failing shouldn't interrupt the study session.

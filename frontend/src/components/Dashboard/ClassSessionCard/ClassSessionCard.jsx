@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { FilesetResolver, PoseLandmarker } from "@mediapipe/tasks-vision";
+import { isWebcamDisabledByUser } from "../../../data/preferences";
 import "./ClassSessionCard.css";
 import "../Overview/Overview.css";
 
@@ -115,6 +116,13 @@ export default function ClassSessionCard({
     let checkinTimer;
     let displayTimer;
     setCameraError("");
+
+    // Real gate: if the student turned the Webcam Permission toggle off in
+    // Settings, don't even ask the browser for the camera this session.
+    if (isWebcamDisabledByUser()) {
+      setCameraError("Webcam check-ins are turned off in Settings.");
+      return undefined;
+    }
 
     navigator.mediaDevices
       .getUserMedia({ video: true })

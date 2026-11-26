@@ -1,37 +1,38 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import NutritionCard from "./NutritionCard";
 
-function mockFetchImpl(url, options) {
-  if (url.endsWith("/api/foods")) {
-    return Promise.resolve({ ok: true, json: () => Promise.resolve(["Apple slices", "Banana"]) });
+const CATALOG = [
+  { food_name: "Apple", calories: 52, fat_g: 0.2, sugar_g: 10.4, water_ml: 86, magnesium_mg: 5, vitamin_b_mg: 0.04, tamil_name: "ஆப்பிள்", sinhala_name: "ඇපල්", price_lkr: 150, category: "Fruit" },
+  { food_name: "Spinach", calories: 23, fat_g: 0.4, sugar_g: 0.4, water_ml: 91, magnesium_mg: 79, vitamin_b_mg: 0.2, tamil_name: "பசலைக்கீரை", sinhala_name: "නිවිති", price_lkr: 60, category: "Vegetable" },
+  { food_name: "Almonds", calories: 579, fat_g: 49.9, sugar_g: 4.4, water_ml: 4, magnesium_mg: 270, vitamin_b_mg: 0.14, tamil_name: "பாதாம்", sinhala_name: "ආමන්ඩ්", price_lkr: 220, category: "Nuts" },
+];
+
+const HISTORY = [
+  { mood_id: 1, mood: "sad", detected_at: "2026-11-24T09:05:00.000Z", subject: "Mathematics", foods: ["Apple", "Almonds"] },
+];
+
+function mockFetchImpl(url) {
+  if (url.endsWith("/api/foods/full")) {
+    return Promise.resolve({ ok: true, json: () => Promise.resolve(CATALOG) });
   }
   if (url.includes("/nutrition-history")) {
+    return Promise.resolve({ ok: true, json: () => Promise.resolve(HISTORY) });
+  }
+  if (url.includes("/restrictions")) {
     return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
   }
-  if (url.includes("/food-log")) {
-    if (options && options.method === "POST") {
-      return Promise.resolve({ ok: true, json: () => Promise.resolve({ id: 2, food_name: "Apple slices" }) });
-    }
+  if (url.includes("/api/foods/")) {
     return Promise.resolve({
       ok: true,
-      json: () => Promise.resolve([{ id: 1, food_name: "Banana", logged_at: "2026-11-01T09:05:00.000Z" }]),
+      json: () =>
+        Promise.resolve({
+          food_name: "Apple", calories: 52, fat_g: 0.2, sugar_g: 10.4, water_ml: 86, magnesium_mg: 5, vitamin_b_mg: 0.04,
+        }),
     });
   }
-  return Promise.resolve({
-    ok: true,
-    json: () =>
-      Promise.resolve({
-        food_name: "Apple slices",
-        calories: 48,
-        fat_g: 0.13,
-        sugar_g: 10.1,
-        water_ml: 86.67,
-        magnesium_mg: 4,
-        vitamin_b_mg: 0.04,
-      }),
-  });
+  return Promise.resolve({ ok: true, json: () => Promise.resolve({}) });
 }
 
 beforeEach(() => {
@@ -43,51 +44,62 @@ afterEach(() => {
 });
 
 describe("NutritionCard", () => {
-  it("renders every recommended food as a card", () => {
-    render(<NutritionCard hidden={false} snacks={["Apple slices", "Plain yogurt", "Carrot sticks"]} />);
-    expect(screen.getByText("Apple slices")).toBeInTheDocument();
-    expect(screen.getByText("Plain yogurt")).toBeInTheDocument();
-    expect(screen.getByText("Carrot sticks")).toBeInTheDocument();
+  it("loads the real food catalog and shows each food as a card with real nutrient stats", async () => {
+    render(<NutritionCard hidden={false} snacks={["Apple"]} />);
+    expect(await screen.findByText("Apple")).toBeInTheDocument();
+    expect(screen.getByText("Spinach")).toBeInTheDocument();
+    expect(screen.getByText("Almonds")).toBeInTheDocument();
+    expect(screen.getByText("52")).toBeInTheDocument(); // Apple's calories
+    expect(screen.getByText("Rs. 150")).toBeInTheDocument();
   });
 
-  it("shows real nutrient details when a food card is clicked", async () => {
-    render(<NutritionCard hidden={false} snacks={["Apple slices"]} />);
-    await userEvent.click(screen.getByText("Apple slices"));
-
-    expect(fetch).toHaveBeenCalledWith("http://localhost:3000/api/foods/Apple%20slices");
-    expect(await screen.findByText("48 kcal")).toBeInTheDocument();
-    expect(screen.getByText("4 mg")).toBeInTheDocument();
+  it("marks foods that match the current mood's recommendation as Recommended", async () => {
+    render(<NutritionCard hidden={false} snacks={["Apple"]} />);
+    await screen.findByText("Apple");
+    expect(screen.getByText(/Recommended/)).toBeInTheDocument();
+    expect(screen.getAllByText(/Available/).length).toBe(2); // Spinach + Almonds
   });
 
-  it("loads a student's real logged food history on the My Food Log tab", async () => {
-    const { container } = render(<NutritionCard hidden={false} snacks={["Apple slices"]} studentId={6} />);
-    await userEvent.click(screen.getByText("My Food Log"));
-
-    expect(fetch).toHaveBeenCalledWith("http://localhost:3000/api/foods");
-    expect(fetch).toHaveBeenCalledWith("http://localhost:3000/api/students/6/food-log");
-    const loggedNames = () => Array.from(container.querySelectorAll(".food-log-name")).map((el) => el.textContent);
-    await waitFor(() => expect(loggedNames()).toEqual(["Banana"]));
+  it("filters the catalog by category", async () => {
+    render(<NutritionCard hidden={false} snacks={[]} />);
+    await screen.findByText("Apple");
+    await userEvent.click(screen.getByRole("button", { name: "Nuts" }));
+    expect(screen.getByText("Almonds")).toBeInTheDocument();
+    expect(screen.queryByText("Apple")).not.toBeInTheDocument();
+    expect(screen.queryByText("Spinach")).not.toBeInTheDocument();
   });
 
-  it("logs a new food and adds it to the real history list", async () => {
-    const { container } = render(<NutritionCard hidden={false} snacks={["Apple slices"]} studentId={6} />);
-    await userEvent.click(screen.getByText("My Food Log"));
-    const loggedNames = () => Array.from(container.querySelectorAll(".food-log-name")).map((el) => el.textContent);
-    await waitFor(() => expect(loggedNames()).toEqual(["Banana"]));
+  it("filters the catalog by search text, matching Tamil/Sinhala names too", async () => {
+    render(<NutritionCard hidden={false} snacks={[]} />);
+    await screen.findByText("Apple");
+    await userEvent.type(screen.getByPlaceholderText(/search in english/i), "නිවිති");
+    expect(screen.getByText("Spinach")).toBeInTheDocument();
+    expect(screen.queryByText("Apple")).not.toBeInTheDocument();
+  });
 
-    await userEvent.selectOptions(screen.getByRole("combobox"), "Apple slices");
-    await userEvent.click(screen.getByRole("button", { name: /log it/i }));
-
-    expect(fetch).toHaveBeenCalledWith(
-      "http://localhost:3000/api/students/6/food-log",
-      expect.objectContaining({ method: "POST" })
+  it("hides foods the parent has restricted for this student", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn((url) => {
+        if (url.includes("/restrictions")) {
+          return Promise.resolve({ ok: true, json: () => Promise.resolve(["Almonds"]) });
+        }
+        return mockFetchImpl(url);
+      })
     );
-
-    await waitFor(() => expect(loggedNames()).toContain("Apple slices"));
+    render(<NutritionCard hidden={false} snacks={[]} studentId={6} />);
+    await screen.findByRole("heading", { level: 3, name: "Apple" });
+    expect(screen.queryByRole("heading", { level: 3, name: "Almonds" })).not.toBeInTheDocument();
   });
 
-  it("shows the same day's real check-ins, the most recent auto-opened and the rest collapsed", async () => {
-    const manyFoods = Array.from({ length: 15 }, (_, i) => `Food ${i}`);
+  it("shows this student's real check-in history with the foods matched each time", async () => {
+    render(<NutritionCard hidden={false} snacks={[]} studentId={6} />);
+    expect(await screen.findByText(/Sad — Mathematics/)).toBeInTheDocument();
+    expect(screen.getByText("Your food history")).toBeInTheDocument();
+    expect(screen.getByText(/Most suggested:/)).toBeInTheDocument();
+  });
+
+  it("only shows the selected calendar month's check-ins, navigated like a calendar", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn((url) => {
@@ -96,60 +108,34 @@ describe("NutritionCard", () => {
             ok: true,
             json: () =>
               Promise.resolve([
-                { mood_id: 2, mood: "happy", detected_at: "2026-11-03T09:00:00.000Z", subject: "Math", foods: ["Apple", "Carrot"] },
-                { mood_id: 1, mood: "neutral", detected_at: "2026-11-03T08:00:00.000Z", subject: "Science", foods: manyFoods },
+                ...HISTORY,
+                { mood_id: 2, mood: "happy", detected_at: "2026-10-15T09:05:00.000Z", subject: "Science", foods: ["Spinach"] },
               ]),
           });
         }
-        return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
+        return mockFetchImpl(url);
       })
     );
     render(<NutritionCard hidden={false} snacks={[]} studentId={6} />);
+    await screen.findByText(/Sad — Mathematics/);
+    expect(screen.queryByText(/Happy — Science/)).not.toBeInTheDocument();
 
-    // the most recent entry auto-opens, showing a real date (not "Most Recent")
-    expect(await screen.findByText(/— Happy \(Math\)/)).toBeInTheDocument();
-    expect(screen.getByText("Apple")).toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: /previous month/i }));
 
-    // the earlier same-day entry's header is visible but its foods stay collapsed
-    expect(screen.getByText(/— Neutral \(Science\)/)).toBeInTheDocument();
-    expect(screen.queryByText("Food 0")).not.toBeInTheDocument();
-
-    await userEvent.click(screen.getByText(/— Neutral \(Science\)/));
-    expect(screen.getByText("Food 0")).toBeInTheDocument();
-
-    // the 15-food entry is capped to 10 with a "+5 more" expand control
-    expect(screen.getByText("+5 more match this mood")).toBeInTheDocument();
-    expect(screen.queryByText("Food 14")).not.toBeInTheDocument();
-
-    await userEvent.click(screen.getByText("+5 more match this mood"));
-    expect(screen.getByText("Food 14")).toBeInTheDocument();
-    expect(screen.getByText("Show fewer")).toBeInTheDocument();
+    expect(await screen.findByText(/Happy — Science/)).toBeInTheDocument();
+    expect(screen.queryByText(/Sad — Mathematics/)).not.toBeInTheDocument();
   });
 
-  it("switches to a different real date and shows that day's real check-ins instead", async () => {
-    vi.stubGlobal(
-      "fetch",
-      vi.fn((url) => {
-        if (url.includes("/nutrition-history")) {
-          return Promise.resolve({
-            ok: true,
-            json: () =>
-              Promise.resolve([
-                { mood_id: 2, mood: "happy", detected_at: "2026-11-03T09:00:00.000Z", subject: "Math", foods: ["Apple"] },
-                { mood_id: 1, mood: "sad", detected_at: "2026-11-02T09:00:00.000Z", subject: "Science", foods: ["Banana"] },
-              ]),
-          });
-        }
-        return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
-      })
-    );
+  it("opens a real nutrient popup when a food chip from the history is clicked", async () => {
     render(<NutritionCard hidden={false} snacks={[]} studentId={6} />);
-    await screen.findByText(/— Happy \(Math\)/);
-    expect(screen.queryByText(/— Sad \(Science\)/)).not.toBeInTheDocument();
+    await screen.findByText(/Sad — Mathematics/);
 
-    fireEvent.change(screen.getByLabelText("Date"), { target: { value: "2026-11-02" } });
+    await userEvent.click(screen.getByRole("button", { name: "Apple" }));
 
-    expect(await screen.findByText(/— Sad \(Science\)/)).toBeInTheDocument();
-    expect(screen.queryByText(/— Happy \(Math\)/)).not.toBeInTheDocument();
+    expect(fetch).toHaveBeenCalledWith("http://localhost:3000/api/foods/Apple");
+    await waitFor(() => expect(screen.getByText("52 kcal")).toBeInTheDocument());
+
+    await userEvent.click(screen.getByRole("button", { name: /close/i }));
+    expect(screen.queryByText("52 kcal")).not.toBeInTheDocument();
   });
 });

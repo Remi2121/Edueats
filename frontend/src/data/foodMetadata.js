@@ -242,6 +242,19 @@ export function getFoodBadge(foodName) {
   return FOOD_METADATA[foodName]?.badge || "USDA Nutrient";
 }
 
+// Real food-group label (Fruit/Vegetable/Dairy/Nuts/Grain/Protein/Other),
+// read from the backend catalog — see ml/build_nutrition_dataset.py's
+// CATEGORY dict for how each food was classified.
+export function getFoodCategory(foodName) {
+  return fullCatalog[foodName]?.category || "Other";
+}
+
+// The full real 93-food catalog as a plain array, for building a browsable
+// grid — only useful once loadFoodCatalog()'s promise has resolved.
+export function getFullCatalog() {
+  return Object.values(fullCatalog);
+}
+
 export function getFoodBenefit(foodName, lang = "en") {
   const meta = FOOD_METADATA[foodName];
   if (meta && meta.benefit && meta.benefit[lang]) {
@@ -249,3 +262,4 @@ export function getFoodBenefit(foodName, lang = "en") {
   }
   return meta?.benefit?.en || "Nutrient-dense whole food matched to your mood by the rule engine.";
 }
+

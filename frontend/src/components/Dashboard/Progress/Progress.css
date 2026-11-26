@@ -1,17 +1,135 @@
-.range-toggle{ display:flex; gap:8px; flex-wrap:wrap; margin-bottom:16px; }
-.range-toggle button{
-  border:1px solid var(--line); background:var(--surface); font-family:inherit; font-size:0.78rem; font-weight:800;
-  padding:10px 16px; border-radius:30px; cursor:pointer; color:var(--ink);
+.range-toggle {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
 }
-.range-toggle button.active{ background:var(--accent); color:var(--accent-contrast); border-color:var(--accent); }
+.range-toggle button {
+  border: 1px solid var(--line);
+  background: var(--surface);
+  font-family: inherit;
+  font-size: 0.8rem;
+  font-weight: 700;
+  padding: 9px 20px;
+  border-radius: 999px;
+  cursor: pointer;
+  color: var(--ink-soft);
+  box-shadow: var(--shadow-sm);
+  transition: all 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.range-toggle button:hover {
+  background: var(--surface-alt);
+  color: var(--ink);
+  transform: translateY(-1px);
+}
+.range-toggle button.active {
+  background: var(--accent);
+  color: var(--accent-contrast);
+  border-color: var(--accent);
+  box-shadow: 0 4px 14px rgba(5, 138, 85, 0.28);
+}
 
-.bar-chart{ width:100%; height:180px; }
-.bar-chart .bar-axis{ font-size:9px; fill:var(--ink-soft); }
-.bar-chart-empty{ color:var(--ink-soft); font-size:0.84rem; padding:30px 0; text-align:center; }
+.bar-chart { width: 100%; height: 200px; }
+.bar-chart .bar-axis { font-size: 10px; fill: var(--ink-soft); font-weight: 600; }
+.bar-chart-empty { color: var(--ink-soft); font-size: 0.86rem; padding: 36px 0; text-align: center; }
 
-.subject-table-wrap{ overflow-x:auto; }
-.subject-table{ width:100%; border-collapse:collapse; min-width:420px; font-size:0.8rem; }
-.subject-table th, .subject-table td{ padding:12px 10px; text-align:left; border-bottom:1px solid var(--line); white-space:nowrap; }
-.subject-table th{ color:var(--ink-soft); font-size:0.68rem; text-transform:uppercase; letter-spacing:0.04em; font-weight:700; }
-.subject-table td:first-child, .subject-table th:first-child{ font-weight:700; color:var(--ink); }
-.subject-table tbody tr:last-child td{ border-bottom:none; }
+/* Student Milestones & Badges */
+.student-badges-section {
+  margin-top: 28px;
+  padding-top: 20px;
+  border-top: 1px dashed var(--line);
+}
+.student-badges-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 14px;
+  margin-top: 14px;
+}
+.student-badge-card {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 16px;
+  background: var(--surface-alt);
+  border: 1px solid var(--line);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.student-badge-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--accent);
+  box-shadow: var(--shadow-sm);
+}
+.badge-icon {
+  font-size: 1.5rem;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: var(--shadow-sm);
+}
+.badge-title {
+  font-size: 0.86rem;
+  font-weight: 800;
+  color: var(--ink);
+  margin-bottom: 2px;
+}
+.badge-desc {
+  font-size: 0.72rem;
+  color: var(--ink-soft);
+  line-height: 1.35;
+}
+
+/* An unearned badge stays visibly dimmed/locked rather than looking
+   identical to an earned one — the point is to show real progress, not
+   decorate the page with claims the student hasn't actually made true. */
+.student-badge-card.locked {
+  opacity: 0.55;
+  filter: grayscale(0.4);
+}
+.student-badge-card.locked .badge-icon { background: var(--surface-alt); }
+.student-badge-card.locked:hover { transform: none; border-color: var(--line); box-shadow: none; }
+.badge-status {
+  font-size: 0.68rem;
+  font-weight: 700;
+  margin-top: 2px;
+}
+.badge-status.unlocked { color: var(--accent); }
+.badge-status.locked { color: var(--ink-soft); }
+
+.subject-table-wrap { overflow-x: auto; }
+.subject-table {
+  width: 100%;
+  border-collapse: collapse;
+  min-width: 440px;
+  font-size: 0.84rem;
+}
+.subject-table th, .subject-table td {
+  padding: 14px 12px;
+  text-align: left;
+  border-bottom: 1px solid var(--line);
+  white-space: nowrap;
+}
+.subject-table th {
+  color: var(--ink-soft);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-weight: 700;
+}
+.subject-table td:first-child, .subject-table th:first-child {
+  font-weight: 700;
+  color: var(--ink);
+}
+.subject-table tbody tr {
+  transition: background 0.15s ease;
+}
+.subject-table tbody tr:hover {
+  background: var(--surface-alt);
+}
+.subject-table tbody tr:last-child td { border-bottom: none; }

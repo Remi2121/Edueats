@@ -98,6 +98,18 @@ CREATE TABLE IF NOT EXISTS parents (
     FOREIGN KEY (student_id) REFERENCES students(id)
 );
 
+-- alerts sent to the parent about a real study session event — currently
+-- only "stopped early" (the student ended a session before its chosen
+-- duration actually elapsed)
+CREATE TABLE IF NOT EXISTS session_alerts (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    session_id INT NOT NULL,
+    reason VARCHAR(30) NOT NULL,
+    sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    read_at TIMESTAMP NULL DEFAULT NULL,
+    FOREIGN KEY (session_id) REFERENCES sessions(id)
+);
+
 -- foods a parent has marked their child must not receive as a recommendation
 CREATE TABLE IF NOT EXISTS food_restrictions (
     id INT AUTO_INCREMENT PRIMARY KEY,

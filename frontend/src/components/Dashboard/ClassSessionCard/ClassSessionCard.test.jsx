@@ -26,30 +26,46 @@ afterEach(() => {
 describe("ClassSessionCard", () => {
   it("shows the setup form when no session is running", () => {
     render(<ClassSessionCard hidden={false} session={notRunning} onStart={() => {}} onStop={() => {}} onCheckIn={() => {}} />);
-    expect(screen.getByText("Start Study Session")).toBeInTheDocument();
+    expect(screen.getByText(/start session/i)).toBeInTheDocument();
   });
 
-  it("calls onStart with the typed subject name and duration", async () => {
+  it("calls onStart with the selected subject and a custom duration", async () => {
     const onStart = vi.fn();
     render(<ClassSessionCard hidden={false} session={notRunning} onStart={onStart} onStop={() => {}} onCheckIn={() => {}} />);
 
-    await userEvent.type(screen.getByLabelText(/subject/i), "Physics");
-    await userEvent.click(screen.getByText("Start Study Session"));
+    await userEvent.selectOptions(screen.getByLabelText(/subject/i), "Science");
+    await userEvent.clear(screen.getByLabelText(/duration/i));
+    await userEvent.type(screen.getByLabelText(/duration/i), "25");
+    await userEvent.click(screen.getByText(/start session/i));
+    await userEvent.click(screen.getByText("No — just this app"));
 
-    expect(onStart).toHaveBeenCalledWith("Physics", 60);
+    expect(onStart).toHaveBeenCalledWith("Science", 25);
   });
 
-  it("defaults the subject to Mathematics when left blank", async () => {
+  it("defaults the subject to Mathematics when nothing is changed", async () => {
     const onStart = vi.fn();
     render(<ClassSessionCard hidden={false} session={notRunning} onStart={onStart} onStop={() => {}} onCheckIn={() => {}} />);
-    await userEvent.click(screen.getByText("Start Study Session"));
+    await userEvent.click(screen.getByText(/start session/i));
+    await userEvent.click(screen.getByText("No — just this app"));
+    expect(onStart).toHaveBeenCalledWith("Mathematics", 60);
+  });
+
+  it("shows a camera-conflict warning if the student says their camera is also on in Zoom/Meet", async () => {
+    const onStart = vi.fn();
+    render(<ClassSessionCard hidden={false} session={notRunning} onStart={onStart} onStop={() => {}} onCheckIn={() => {}} />);
+    await userEvent.click(screen.getByText(/start session/i));
+    await userEvent.click(screen.getByText("Yes, camera is on in Zoom/Meet"));
+    expect(screen.getByText("One camera, one app at a time")).toBeInTheDocument();
+    expect(onStart).not.toHaveBeenCalled();
+
+    await userEvent.click(screen.getByText("I have a second camera — continue"));
     expect(onStart).toHaveBeenCalledWith("Mathematics", 60);
   });
 
   it("shows the live session view with the subject name when running", () => {
     render(<ClassSessionCard hidden={false} session={running} onStart={() => {}} onStop={() => {}} onCheckIn={() => {}} />);
     expect(screen.getByText("● Live")).toBeInTheDocument();
-    expect(screen.getByText(/Study Timer — 🧮 Mathematics/)).toBeInTheDocument();
+    expect(screen.getByText(/🧮 Mathematics/)).toBeInTheDocument();
   });
 
   it("calls onStop when the stop control is clicked", async () => {
@@ -66,14 +82,23 @@ describe("ClassSessionCard", () => {
     expect(screen.getByLabelText("Resume")).toBeInTheDocument();
   });
 
-  it("shows a camera error and disables Test Check-In Now when the camera is denied", async () => {
+  it("shows a camera error and disables Check in again when the camera is denied", async () => {
     vi.stubGlobal("navigator", {
       ...navigator,
       mediaDevices: { getUserMedia: vi.fn().mockRejectedValue(new Error("denied")) },
     });
-    render(<ClassSessionCard hidden={false} session={running} onStart={() => {}} onStop={() => {}} onCheckIn={() => {}} />);
+    render(
+      <ClassSessionCard
+        hidden={false}
+        session={running}
+        onStart={() => {}}
+        onStop={() => {}}
+        onCheckIn={() => {}}
+        latestMood={{ name: "Neutral", emoji: "😐", bg: "#eee", ink: "#333" }}
+      />
+    );
     expect(await screen.findByText(/camera access denied/i)).toBeInTheDocument();
-    expect(screen.getByText("⚡ Test Check-In Now")).toBeDisabled();
+    expect(screen.getByText(/check in again/i)).toBeDisabled();
   });
 
   it("does not auto check-in right away when the real 15-minute interval is in effect", async () => {
@@ -104,7 +129,7 @@ describe("ClassSessionCard", () => {
     }
   });
 
-  it("clicking Test Check-In Now captures and sends a frame right away, no interval wait", async () => {
+  it("clicking Check in again captures and sends a frame right away, no interval wait", async () => {
     const onTestCheckIn = vi.fn();
     render(
       <ClassSessionCard
@@ -114,13 +139,14 @@ describe("ClassSessionCard", () => {
         onStop={() => {}}
         onCheckIn={() => {}}
         onTestCheckIn={onTestCheckIn}
+        latestMood={{ name: "Neutral", emoji: "😐", bg: "#eee", ink: "#333" }}
       />
     );
-    await userEvent.click(screen.getByText("⚡ Test Check-In Now"));
+    await userEvent.click(screen.getByText(/check in again/i));
     expect(onTestCheckIn).toHaveBeenCalled();
   });
 
-  it("shows the checking-in state in the Detected Mood panel while an automatic check-in is in progress", () => {
+  it("shows the checking-in state (Analyzing) while an automatic check-in is in progress, and Detecting for posture", () => {
     render(
       <ClassSessionCard
         hidden={false}
@@ -131,9 +157,8 @@ describe("ClassSessionCard", () => {
         checkingIn={true}
       />
     );
-    // "Detecting..." shows for both mood and posture until each resolves —
-    // both appearing is correct, not a duplicate bug.
-    expect(screen.getAllByText("Detecting...").length).toBeGreaterThan(0);
+    expect(screen.getByText("Analyzing…")).toBeInTheDocument();
+    expect(screen.getByText("Detecting…")).toBeInTheDocument();
   });
 
   it("shows the Testing… label and disables the button while a test check-in is in progress", () => {
@@ -145,6 +170,7 @@ describe("ClassSessionCard", () => {
         onStop={() => {}}
         onCheckIn={() => {}}
         testCheckingIn={true}
+        latestMood={{ name: "Neutral", emoji: "😐", bg: "#eee", ink: "#333" }}
       />
     );
     expect(screen.getByText("Testing…")).toBeInTheDocument();
@@ -200,22 +226,6 @@ describe("ClassSessionCard", () => {
     expect(screen.getAllByText(/Happy/).length).toBeGreaterThan(0);
     expect(screen.getByText("Apple slices")).toBeInTheDocument();
     expect(screen.getByText("Plain yogurt")).toBeInTheDocument();
-  });
-
-  it("shows the real pipeline stages live as they stream in from a test check-in", () => {
-    render(
-      <ClassSessionCard
-        hidden={false}
-        session={running}
-        onStart={() => {}}
-        onStop={() => {}}
-        onCheckIn={() => {}}
-        testCheckingIn={true}
-        pipelineLog={["Backend received the photo, starting mood detection", "Face detected, cropped to just the face"]}
-      />
-    );
-    expect(screen.getByText("Backend received the photo, starting mood detection")).toBeInTheDocument();
-    expect(screen.getByText("Face detected, cropped to just the face")).toBeInTheDocument();
   });
 
   it("shows the test check-in's own result, separately from the automatic result", () => {

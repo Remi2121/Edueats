@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { MOODS } from "../../../data/moods";
-import { foodImageUrl } from "../../../data/foodImages";
+import FoodItem from "../shared/FoodItem";
 import "./MoodSummaryCard.css";
 
 const API_BASE = "http://localhost:3000";
@@ -39,7 +39,7 @@ export default function MoodSummaryCard({ studentId }) {
       <p className="section-label">Past 5 weeks, from your real check-ins</p>
 
       {weeks === null ? (
-        <p className="section-label" style={{ textTransform: "none", letterSpacing: "normal" }}>Loading…</p>
+        <p className="section-label">Loading…</p>
       ) : (
         <>
           <div className="mood-week-tabs">
@@ -56,33 +56,30 @@ export default function MoodSummaryCard({ studentId }) {
           </div>
 
           {entry && (
-            <div className="mood-week-detail">
+            <div
+              className={"mood-week-detail" + (mood ? " has-mood" : "")}
+              style={mood ? { background: mood.bg, color: mood.ink } : undefined}
+            >
               <p className="mood-week-range">{entry.start} – {entry.end}</p>
               {!mood ? (
-                <p className="section-label" style={{ textTransform: "none", letterSpacing: "normal" }}>
-                  No check-ins that week.
-                </p>
+                <p className="section-label">No check-ins that week.</p>
               ) : (
                 <>
-                  <div className="mood-chip-lg" style={{ background: mood.bg, color: mood.ink }}>
-                    {mood.emoji} {mood.name}
-                  </div>
+                  <p className="mood-week-headline">{mood.emoji} Mostly {mood.name} this week</p>
                   {entry.foods.length === 0 ? (
-                    <p className="section-label" style={{ textTransform: "none", letterSpacing: "normal" }}>
-                      No food matched this mood's rule.
-                    </p>
+                    <p className="mood-week-sub">No food matched this mood's rule.</p>
                   ) : (
-                    <div className="mood-week-foods">
-                      {entry.foods.slice(0, MAX_FOODS).map((food) => (
-                        <span key={food} className="mood-week-food-chip">
-                          {foodImageUrl(food) && <img src={foodImageUrl(food)} alt="" loading="lazy" />}
-                          {food}
-                        </span>
-                      ))}
-                      {entry.foods.length > MAX_FOODS && (
-                        <span className="mood-week-food-more">+{entry.foods.length - MAX_FOODS} more</span>
-                      )}
-                    </div>
+                    <>
+                      <p className="mood-week-sub">Foods the rule engine matched:</p>
+                      <div className="mood-week-foods">
+                        {entry.foods.slice(0, MAX_FOODS).map((food) => (
+                          <FoodItem key={food} name={food} variant="chip" />
+                        ))}
+                        {entry.foods.length > MAX_FOODS && (
+                          <span className="mood-week-food-more">+{entry.foods.length - MAX_FOODS} more</span>
+                        )}
+                      </div>
+                    </>
                   )}
                 </>
               )}

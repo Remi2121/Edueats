@@ -36,6 +36,15 @@ function mockFetchSequence(responses) {
     if (typeof url === "string" && /\/(moods|nutrition|alerts|focus)$/.test(url)) {
       return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
     }
+    if (typeof url === "string" && (url.endsWith("/api/foods") || url.endsWith("/api/foods/full"))) {
+      return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
+    }
+    if (typeof url === "string" && url.includes("/food-log")) {
+      return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
+    }
+    if (typeof url === "string" && url.includes("/restrictions")) {
+      return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
+    }
     if (typeof url === "string" && url.includes("/nutrition-history")) {
       return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
     }
@@ -98,9 +107,9 @@ describe("Dashboard (integration)", () => {
   it("shows the overview summary, not the full cards", () => {
     render(<Dashboard student={student} onLogout={() => {}} />);
     expect(screen.getByText("Current mood")).toBeInTheDocument();
-    expect(screen.getByText("Today's Food Inspiration")).toBeInTheDocument();
-    expect(screen.getByText("Quick Actions")).toBeInTheDocument();
-    expect(screen.getByText("Study's Summary")).toBeInTheDocument();
+    expect(screen.getByText("Mood & food check-in")).toBeInTheDocument();
+    expect(screen.getByText("Study session")).toBeInTheDocument();
+    expect(screen.getByText("Nutrition snapshot")).toBeInTheDocument();
     // The full Nutrition/Mood History/Focus/Alerts pages only show on their
     // own dedicated nav views now, not bundled into the overview.
     expect(screen.queryByRole("heading", { name: "My Nutrition" })).not.toBeInTheDocument();
@@ -110,7 +119,7 @@ describe("Dashboard (integration)", () => {
   it("Study Session nav shows the live class session card", async () => {
     render(<Dashboard student={student} onLogout={() => {}} />);
     await goToStudySession();
-    expect(screen.getByText("Class Session").closest(".dash-card")).not.toHaveClass("hide");
+    expect(screen.getByText("Live camera").closest(".study-layout")).not.toHaveClass("hide");
   });
 
   it("My Nutrition nav shows the nutrition card", async () => {
@@ -122,7 +131,7 @@ describe("Dashboard (integration)", () => {
   it("Mood & Focus nav shows mood history and alerts together", async () => {
     render(<Dashboard student={student} onLogout={() => {}} />);
     await userEvent.click(screen.getByText("Mood & Focus"));
-    expect(screen.getByRole("heading", { name: "Mood & Food History" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { name: "Mood history" })).toBeInTheDocument();
     expect(screen.getByText("Recent Alerts to Parent")).toBeInTheDocument();
   });
 
@@ -136,8 +145,8 @@ describe("Dashboard (integration)", () => {
     const onToggleTheme = vi.fn();
     render(<Dashboard student={student} onLogout={() => {}} theme="light" onToggleTheme={onToggleTheme} />);
     await userEvent.click(screen.getByText("Settings"));
-    expect(screen.getByText("Theme")).toBeInTheDocument();
-    await userEvent.click(screen.getByText("Theme"));
+    expect(screen.getByText("Appearance")).toBeInTheDocument();
+    await userEvent.click(screen.getByText(/dark mode/i));
     expect(onToggleTheme).toHaveBeenCalledOnce();
   });
 
@@ -146,8 +155,8 @@ describe("Dashboard (integration)", () => {
     render(<Dashboard student={student} onLogout={() => {}} />);
     await goToStudySession();
 
-    await userEvent.type(screen.getByLabelText(/subject/i), "Mathematics");
-    await userEvent.click(screen.getByText("Start Study Session"));
+    await userEvent.selectOptions(screen.getByLabelText(/subject/i), "Mathematics");
+    await userEvent.click(screen.getByText(/start session/i));
     await userEvent.click(screen.getByText("No — just this app"));
 
     expect(fetch).toHaveBeenCalledWith(
@@ -156,19 +165,25 @@ describe("Dashboard (integration)", () => {
     );
   });
 
-  it("ending a session marks it finished on the backend", async () => {
+  it("ending a session marks it finished on the backend, and reports it as an early stop when real countdown time was left", async () => {
     vi.stubGlobal("fetch", mockFetchSequence([{ body: { id: 99 } }]));
     render(<Dashboard student={student} onLogout={() => {}} />);
     await goToStudySession();
 
-    await userEvent.click(screen.getByText("Start Study Session"));
+    await userEvent.click(screen.getByText(/start session/i));
     await userEvent.click(screen.getByText("No — just this app"));
     await screen.findByLabelText("Stop Session");
+    // Default duration is 60 minutes and we just started — the real
+    // countdown still has (almost) all of it left, so this is a real
+    // early stop.
     await userEvent.click(screen.getByLabelText("Stop Session"));
 
     expect(fetch).toHaveBeenCalledWith(
       "http://localhost:3000/api/sessions/99/end",
-      expect.objectContaining({ method: "PATCH" })
+      expect.objectContaining({
+        method: "PATCH",
+        body: JSON.stringify({ early: true }),
+      })
     );
   });
 
@@ -177,7 +192,7 @@ describe("Dashboard (integration)", () => {
     render(<Dashboard student={guestStudent} onLogout={() => {}} />);
     await goToStudySession();
 
-    await userEvent.click(screen.getByText("Start Study Session"));
+    await userEvent.click(screen.getByText(/start session/i));
     await userEvent.click(screen.getByText("No — just this app"));
 
     expect(fetch).not.toHaveBeenCalled();
@@ -193,7 +208,7 @@ describe("Dashboard (integration)", () => {
       vi.stubGlobal("fetch", vi.fn());
       render(<Dashboard student={guestStudent} onLogout={() => {}} />);
       await user.click(screen.getByText("Study Session"));
-      await user.click(screen.getByText("Start Study Session"));
+      await user.click(screen.getByText(/start session/i));
       await user.click(screen.getByText("No — just this app"));
 
       // Check-in fires automatically once the camera is ready, on the real
@@ -224,7 +239,7 @@ describe("Dashboard (integration)", () => {
       );
       render(<Dashboard student={student} onLogout={() => {}} />);
       await user.click(screen.getByText("Study Session"));
-      await user.click(screen.getByText("Start Study Session")); // defaults subject to Mathematics
+      await user.click(screen.getByText(/start session/i)); // defaults subject to Mathematics
       await user.click(screen.getByText("No — just this app"));
 
       await act(() => vi.advanceTimersByTimeAsync(0));
@@ -232,7 +247,6 @@ describe("Dashboard (integration)", () => {
       await act(() => vi.advanceTimersByTimeAsync(15 * 60 * 1000)); // reading 2
       await act(() => vi.advanceTimersByTimeAsync(15 * 60 * 1000)); // reading 3 -> reveals
 
-      expect(screen.getByText(/Happy detected/)).toBeInTheDocument();
       expect(screen.getByText("Apple slices")).toBeInTheDocument();
 
       await user.click(screen.getByText("Mood & Focus"));
@@ -258,7 +272,7 @@ describe("Dashboard (integration)", () => {
       );
       render(<Dashboard student={student} onLogout={() => {}} />);
       await user.click(screen.getByText("Study Session"));
-      await user.click(screen.getByText("Start Study Session"));
+      await user.click(screen.getByText(/start session/i));
       await user.click(screen.getByText("No — just this app"));
 
       await act(() => vi.advanceTimersByTimeAsync(0));
@@ -266,7 +280,7 @@ describe("Dashboard (integration)", () => {
       await act(() => vi.advanceTimersByTimeAsync(15 * 60 * 1000));
       await act(() => vi.advanceTimersByTimeAsync(15 * 60 * 1000));
 
-      expect(screen.getByText(/Sad detected/)).toBeInTheDocument();
+      expect(screen.getByText("Almonds")).toBeInTheDocument();
       await user.click(screen.getByText("Mood & Focus"));
       expect(screen.getByText(/Sad detected during Mathematics/)).toBeInTheDocument();
     } finally {
@@ -290,14 +304,14 @@ describe("Dashboard (integration)", () => {
       );
       render(<Dashboard student={student} onLogout={() => {}} />);
       await user.click(screen.getByText("Study Session"));
-      await user.click(screen.getByText("Start Study Session"));
+      await user.click(screen.getByText(/start session/i));
       await user.click(screen.getByText("No — just this app"));
 
       await act(() => vi.advanceTimersByTimeAsync(0));
       await act(() => vi.advanceTimersByTimeAsync(15 * 60 * 1000)); // reading 1 only
       await act(() => vi.advanceTimersByTimeAsync(5 * 60 * 1000)); // short of reading 2's tick
 
-      expect(screen.queryByText(/Happy detected/)).not.toBeInTheDocument();
+      expect(screen.queryByText("Apple slices")).not.toBeInTheDocument();
     } finally {
       vi.useRealTimers();
     }
@@ -307,7 +321,7 @@ describe("Dashboard (integration)", () => {
     const onLogout = vi.fn();
     render(<Dashboard student={student} onLogout={onLogout} />);
     await userEvent.click(screen.getByText("Settings"));
-    await userEvent.click(screen.getByText("Log Out"));
+    await userEvent.click(screen.getByText(/log out/i, { selector: ".btn-danger" }));
     expect(onLogout).toHaveBeenCalledOnce();
   });
 });

@@ -1,446 +1,298 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { formatHistoryTimestamp } from "../../../data/moods";
-import { getFoodTranslations, getFoodPrice, loadFoodCatalog } from "../../../data/foodMetadata";
-import { t } from "../../../data/i18n";
-import FoodItem from "../shared/FoodItem";
+import { getFoodTranslations, getFoodCategory, getFullCatalog, loadFoodCatalog } from "../../../data/foodMetadata";
+import { foodImageUrl } from "../../../data/foodImages";
+import CardHead from "../shared/CardHead";
 import "./NutritionCard.css";
+import "../../AuthFlow.css"; // reuses the .popup-overlay/.popup-card styles already defined there
 
 const API_BASE = "http://localhost:3000";
 
-// Neutral/Surprise have no nutrient rule, so the real rule engine returns
-// every food in the dataset for them (93 foods) — real data, but far too
-// many cards to usefully show at once.
-const MAX_DISPLAYED_FOODS = 10;
+const CATEGORIES = ["All", "Fruit", "Vegetable", "Dairy", "Nuts", "Grain", "Protein", "Other"];
+const CATEGORY_EMOJI = {
+  Fruit: "🍎", Vegetable: "🥒", Dairy: "🥛", Nuts: "🥜", Grain: "🌾", Protein: "🥚", Other: "🍬",
+};
 
-const NUTRIENT_ROWS = [
-  ["Calories", "calories", "kcal"],
-  ["Fat", "fat_g", "g"],
-  ["Sugar", "sugar_g", "g"],
-  ["Water", "water_ml", "ml"],
-  ["Magnesium", "magnesium_mg", "mg"],
-  ["Vitamin B", "vitamin_b_mg", "mg"],
-];
+const NUTRIENT_LABELS = {
+  calories: ["Calories", "kcal"],
+  fat_g: ["Fat", "g"],
+  sugar_g: ["Sugar", "g"],
+  water_ml: ["Water", "ml"],
+  magnesium_mg: ["Magnesium", "mg"],
+  vitamin_b_mg: ["Vitamin B", "mg"],
+};
 
-// Local calendar date (YYYY-MM-DD) for a real timestamp, matching what
-// <input type="date"> itself works in — using the LOCAL date, not UTC, so a
-// check-in from this evening doesn't get filed under tomorrow for anyone
-// east of UTC.
-function localDateOf(isoString) {
-  const d = new Date(isoString);
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, "0");
-  const day = String(d.getDate()).padStart(2, "0");
-  return `${y}-${m}-${day}`;
-}
-
-// Minutes since local midnight for a real timestamp — used to find which
-// real check-in is closest to a picked time-of-day.
-function minutesOfDay(isoString) {
-  const d = new Date(isoString);
-  return d.getHours() * 60 + d.getMinutes();
-}
-
-// Picks the single real entry whose actual time is closest to the "HH:MM"
-// the student picked — real check-ins land at whatever minute the camera
-// happened to fire, not on a clean grid, so this is a nearest-match, not an
-// exact one.
-function closestEntryTo(entries, hhmm) {
-  if (entries.length === 0) return [];
-  const [h, m] = hhmm.split(":").map(Number);
-  const targetMinutes = h * 60 + m;
-  let best = entries[0];
-  let bestDiff = Math.abs(minutesOfDay(best.detected_at) - targetMinutes);
-  for (const entry of entries.slice(1)) {
-    const diff = Math.abs(minutesOfDay(entry.detected_at) - targetMinutes);
-    if (diff < bestDiff) {
-      best = entry;
-      bestDiff = diff;
-    }
-  }
-  return [best];
-}
-
-// A handful of real foods read as a messy wall of identical cards once a
-// mood matches more than a few (Neutral/Surprise can match all 93). Giving
-// the first few real visual weight and the rest a plain scannable list
-// keeps every food visible without that wall-of-cards effect.
-function localizedMeta(food, lang) {
-  const trans = getFoodTranslations(food);
-  const price = getFoodPrice(food);
-  const names = lang === "en" ? `${trans.ta} • ${trans.si}` : lang === "ta" ? `${trans.en} • ${trans.si}` : `${trans.en} • ${trans.ta}`;
-  return price != null ? `${names} · ${t("pricePrefix", lang)} ${price}` : names;
-}
-
-function FoodGroup({ foods, selected, onSelect, expandButton, lang = "en" }) {
-  const spotlight = foods.slice(0, 3);
-  const rest = foods.slice(3);
-  return (
-    <>
-      <div className="food-spotlight-row">
-        {spotlight.map((food) => (
-          <FoodItem key={food} name={food} variant="spotlight" selected={selected === food} onClick={() => onSelect(food)} meta={localizedMeta(food, lang)} />
-        ))}
-      </div>
-      {rest.length > 0 && (
-        <div className="food-row-list">
-          {rest.map((food) => (
-            <FoodItem key={food} name={food} variant="row" selected={selected === food} onClick={() => onSelect(food)} meta={localizedMeta(food, lang)} />
-          ))}
-        </div>
-      )}
-      {expandButton}
-    </>
-  );
-}
+// Caps how many cards/rows render at once in any one list on this page — a
+// real count of the rest is shown instead of silently cutting the list off.
+const MAX_SHOWN = 20;
+const MAX_FOODS_PER_ENTRY = 6;
 
 export default function NutritionCard({ hidden, focused, snacks, studentId, lang = "en" }) {
-  const [tab, setTab] = useState("recommended");
-  const [, setCatalogReady] = useState(false);
-  useEffect(() => {
-    loadFoodCatalog().then(() => setCatalogReady(true));
-  }, []);
-  const [selected, setSelected] = useState(null);
-  const [selectedNutrients, setSelectedNutrients] = useState(null);
-  const [loadError, setLoadError] = useState("");
+  const [catalog, setCatalog] = useState([]);
+  const [query, setQuery] = useState("");
+  const [category, setCategory] = useState("All");
+  const [restrictedNames, setRestrictedNames] = useState([]);
 
-  const [foodOptions, setFoodOptions] = useState([]);
-  const [logChoice, setLogChoice] = useState("");
-  const [logHistory, setLogHistory] = useState(null);
-  const [logSaving, setLogSaving] = useState(false);
-  const [logError, setLogError] = useState("");
-
-  const [detailsQuery, setDetailsQuery] = useState("");
-
+  // Real per-session check-in history (when it happened, the mood, and the
+  // real foods the rule engine matched that time) — not a manually-picked
+  // log, since the student asked for this to reflect what actually happened
+  // during real study sessions, not a free pick-any-food list.
   const [history, setHistory] = useState(null);
-  const [expandedEntries, setExpandedEntries] = useState(new Set());
-  // Which past check-in's foods are currently shown — only one at a time,
-  // collapsed by default, so the tab doesn't dump every past check-in's
-  // full food list on screen at once.
-  const [openEntry, setOpenEntry] = useState(null);
-  const [selectedDate, setSelectedDate] = useState("");
-  const [selectedTime, setSelectedTime] = useState("");
+  // 0 = this month, -1 = one month back, etc. — the history list always
+  // shows one real calendar month at a time, navigated like a calendar.
+  const [monthOffset, setMonthOffset] = useState(0);
+  const [popupFood, setPopupFood] = useState(null);
+  const [popupNutrients, setPopupNutrients] = useState(null);
+  const [popupError, setPopupError] = useState("");
 
-  // Real past check-ins (most recent first) instead of just "today's"
-  // single recommendation — each with the real mood and real foods the
-  // rule engine matched at that time. Fetches a real window of history so
-  // the date picker below has real dates to filter, not just the latest few.
+  // The real 93-food catalog (nutrients + tamil_name/sinhala_name/price_lkr
+  // + category), fetched once from the backend instead of per-food.
   useEffect(() => {
-    if (!studentId) {
-      setHistory([]);
-      return;
-    }
-    fetch(`${API_BASE}/api/students/${studentId}/nutrition-history?limit=50`)
+    loadFoodCatalog().then(() => setCatalog(getFullCatalog()));
+  }, []);
+
+  // Loads this student's real check-in history + the parent's real
+  // restriction list once, so the catalog only ever shows foods the parent
+  // has actually approved — the same real restriction table /api/checkin
+  // already filters recommendations against.
+  useEffect(() => {
+    if (!studentId) return;
+    fetch(`${API_BASE}/api/students/${studentId}/nutrition-history?limit=500`)
       .then((res) => res.json())
-      .then((rows) => {
-        setHistory(rows);
-        if (rows.length > 0) {
-          setSelectedDate(localDateOf(rows[0].detected_at));
-          setOpenEntry(rows[0].mood_id);
-        }
-      })
+      .then(setHistory)
       .catch(() => setHistory([]));
+    fetch(`${API_BASE}/api/students/${studentId}/restrictions`)
+      .then((res) => res.json())
+      .then(setRestrictedNames)
+      .catch(() => setRestrictedNames([]));
   }, [studentId]);
 
-  const entriesForSelectedDate = (history || []).filter((e) => localDateOf(e.detected_at) === selectedDate);
-
-  // A real check-in happens at whatever time the camera caught it, not on a
-  // fixed clock grid — so "selecting a time" means finding the single real
-  // check-in closest to that time, not demanding an exact match.
-  const displayedEntries = selectedTime ? closestEntryTo(entriesForSelectedDate, selectedTime) : entriesForSelectedDate;
-
-  function handleDateChange(newDate) {
-    setSelectedDate(newDate);
-    setSelectedTime("");
-    const firstForDate = (history || []).find((e) => localDateOf(e.detected_at) === newDate);
-    setOpenEntry(firstForDate ? firstForDate.mood_id : null);
-  }
-
-  function handleTimeChange(newTime) {
-    setSelectedTime(newTime);
-    if (!newTime) return;
-    const [match] = closestEntryTo(entriesForSelectedDate, newTime);
-    setOpenEntry(match ? match.mood_id : null);
-  }
-
-  function toggleExpanded(moodId) {
-    setExpandedEntries((prev) => {
-      const next = new Set(prev);
-      if (next.has(moodId)) next.delete(moodId);
-      else next.add(moodId);
-      return next;
-    });
-  }
-
-  async function selectFood(food) {
-    setSelected(food);
-    setSelectedNutrients(null);
-    setLoadError("");
+  async function openFoodPopup(food) {
+    setPopupFood(food);
+    setPopupNutrients(null);
+    setPopupError("");
     try {
       const res = await fetch(`${API_BASE}/api/foods/${encodeURIComponent(food)}`);
       if (!res.ok) {
-        setLoadError("No nutrient data found for this food.");
+        setPopupError("No nutrient data found for this food.");
         return;
       }
-      setSelectedNutrients(await res.json());
+      setPopupNutrients(await res.json());
     } catch {
-      setLoadError("Could not reach the server.");
+      setPopupError("Could not reach the server.");
     }
   }
 
-  // loads the real food list + this student's real log history the first
-  // time they open the My Food Log tab
-  useEffect(() => {
-    if ((tab !== "log" && tab !== "details") || !studentId || logHistory !== null) return;
-    fetch(`${API_BASE}/api/foods`)
-      .then((res) => res.json())
-      .then((names) => {
-        setFoodOptions(names);
-        setLogChoice(names[0] || "");
-      })
-      .catch(() => {});
-    fetch(`${API_BASE}/api/students/${studentId}/food-log`)
-      .then((res) => res.json())
-      .then(setLogHistory)
-      .catch(() => setLogHistory([]));
-  }, [tab, studentId, logHistory]);
+  const restrictedSet = useMemo(() => new Set(restrictedNames), [restrictedNames]);
 
-  async function logFood() {
-    if (!logChoice || !studentId) return;
-    setLogSaving(true);
-    setLogError("");
-    try {
-      const res = await fetch(`${API_BASE}/api/students/${studentId}/food-log`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ food_name: logChoice }),
-      });
-      if (!res.ok) {
-        setLogError("Could not log that food.");
-        return;
-      }
-      const entry = await res.json();
-      setLogHistory((prev) => [{ ...entry, logged_at: new Date().toISOString() }, ...(prev || [])]);
-    } catch {
-      setLogError("Could not reach the server.");
-    } finally {
-      setLogSaving(false);
-    }
-  }
+  const list = useMemo(() => {
+    const q = query.trim().toLowerCase();
+    return catalog.filter((f) => {
+      if (restrictedSet.has(f.food_name)) return false;
+      if (category !== "All" && getFoodCategory(f.food_name) !== category) return false;
+      if (!q) return true;
+      const trans = getFoodTranslations(f.food_name);
+      return `${trans.en} ${trans.ta} ${trans.si}`.toLowerCase().includes(q);
+    });
+  }, [catalog, query, category, restrictedSet]);
+
+  const shownList = list.slice(0, MAX_SHOWN);
+  const remainingCount = list.length - shownList.length;
+
+  // The one real calendar month currently selected — only check-ins that
+  // actually happened within it are shown, like flipping a calendar page.
+  const selectedMonth = useMemo(() => {
+    const d = new Date();
+    d.setDate(1);
+    d.setMonth(d.getMonth() + monthOffset);
+    return d;
+  }, [monthOffset]);
+  const monthLabel = selectedMonth.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+  const canGoNext = monthOffset < 0;
+
+  const monthHistory = useMemo(() => {
+    if (!history) return [];
+    return history.filter((e) => {
+      const d = new Date(e.detected_at);
+      return d.getFullYear() === selectedMonth.getFullYear() && d.getMonth() === selectedMonth.getMonth();
+    });
+  }, [history, selectedMonth]);
+
+  // The real food the rule engine has suggested most often during the
+  // selected month — a genuine count, not a guess.
+  const mostSuggested = useMemo(() => {
+    if (monthHistory.length === 0) return null;
+    const counts = {};
+    monthHistory.forEach((e) => (e.foods || []).forEach((f) => { counts[f] = (counts[f] || 0) + 1; }));
+    const entries = Object.entries(counts);
+    if (entries.length === 0) return null;
+    const [food_name, count] = entries.sort((a, b) => b[1] - a[1])[0];
+    return { food_name, count };
+  }, [monthHistory]);
+
+  const shownHistory = monthHistory.slice(0, MAX_SHOWN);
+  const remainingHistoryCount = monthHistory.length - shownHistory.length;
 
   return (
+    <>
     <div className={"dash-card" + (hidden ? " hide" : "") + (focused ? " focused" : "")}>
-      <div className="nutrition-tabs">
-        <button className={"nutrition-tab" + (tab === "recommended" ? " active" : "")} type="button" onClick={() => setTab("recommended")}>
-          Recommended
-        </button>
-        <button className={"nutrition-tab" + (tab === "log" ? " active" : "")} type="button" onClick={() => setTab("log")}>
-          My Food Log
-        </button>
-        <button className={"nutrition-tab" + (tab === "details" ? " active" : "")} type="button" onClick={() => setTab("details")}>
-          Nutrition Details
-        </button>
+      <div className="food-log-panel food-log-panel-first">
+        <CardHead
+          icon="📜"
+          title="Your food history"
+          sub="Real foods matched during each study session"
+          action={
+            <div className="month-nav">
+              <button type="button" onClick={() => setMonthOffset((m) => m - 1)} aria-label="Previous month">◀</button>
+              <span>{monthLabel}</span>
+              <button type="button" onClick={() => setMonthOffset((m) => m + 1)} disabled={!canGoNext} aria-label="Next month">▶</button>
+            </div>
+          }
+        />
+
+        {mostSuggested && (
+          <p className="food-log-most-used">
+            ⭐ Most suggested: <b>{mostSuggested.food_name}</b> ({mostSuggested.count}×)
+          </p>
+        )}
+
+        {history === null && <p className="food-log-empty">Loading…</p>}
+        {history && monthHistory.length === 0 && (
+          <p className="food-log-empty">No check-ins in {monthLabel}.</p>
+        )}
+        {history && monthHistory.length > 0 && (
+          <div className="food-log-grid">
+            {shownHistory.map((entry) => {
+              const moodLabel = entry.mood.charAt(0).toUpperCase() + entry.mood.slice(1);
+              const foods = entry.foods.slice(0, MAX_FOODS_PER_ENTRY);
+              return (
+                <div key={entry.mood_id} className="food-log-box food-log-session-box">
+                  <span className="food-log-box-date">{formatHistoryTimestamp(entry.detected_at)}</span>
+                  <b>{moodLabel}{entry.subject ? ` — ${entry.subject}` : ""}</b>
+                  <div className="food-log-session-foods">
+                    {foods.map((food) => (
+                      <button key={food} type="button" className="food-log-food-chip" onClick={() => openFoodPopup(food)}>
+                        {food}
+                      </button>
+                    ))}
+                    {entry.foods.length > MAX_FOODS_PER_ENTRY && (
+                      <span className="food-log-session-more">+{entry.foods.length - MAX_FOODS_PER_ENTRY} more</span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+        {remainingHistoryCount > 0 && (
+          <p className="footnote" style={{ marginTop: 10 }}>+{remainingHistoryCount} more check-ins</p>
+        )}
       </div>
 
-      {tab === "details" ? (
-        <>
-          <p className="section-label" style={{ marginTop: 14 }}>
-            View the nutrition details of every food you have logged.
-          </p>
+      <div className="nutrition-feature">
+        <span className="feature-icon" aria-hidden="true">🥗</span>
+        <div>
+          <b>Food suggestions for your wellbeing</b>
+          <p>Suggestions are matched to your latest mood and filtered by your parent's food restrictions.</p>
+        </div>
+        <span className="soft-count">{snacks.length} recommended now</span>
+      </div>
+
+      <div className="filter-bar">
+        <div className="search-box">
+          <span aria-hidden="true">🔎</span>
           <input
-            type="text"
-            className="nutrition-details-search"
-            placeholder="Search banana, rice, egg..."
-            value={detailsQuery}
-            onChange={(e) => setDetailsQuery(e.target.value)}
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Search in English, தமிழ் or සිංහල"
           />
-          <ul className="food-record-list">
-            {logHistory === null && <li className="food-log-empty">Loading…</li>}
-            {logHistory && logHistory.length === 0 && (
-              <li className="food-log-empty">Nothing logged yet — log a food in the My Food Log tab first.</li>
-            )}
-            {logHistory &&
-              logHistory
-                .filter((e) => e.food_name.toLowerCase().includes(detailsQuery.trim().toLowerCase()))
-                .map((entry) => (
-                  <li key={entry.id}>
-                    <FoodItem
-                      name={entry.food_name}
-                      variant="row"
-                      selected={selected === entry.food_name}
-                      onClick={() => selectFood(entry.food_name)}
-                      meta={formatHistoryTimestamp(entry.logged_at)}
-                      trailing={<span aria-hidden="true">→</span>}
-                    />
-                  </li>
-                ))}
-          </ul>
-
-          {selected && (
-            <div className="nutrition-details">
-              <p className="section-label">Nutrition Details — {selected}</p>
-              {loadError && <p className="settings-row-hint">{loadError}</p>}
-              {selectedNutrients && (
-                <div className="nutrient-rows">
-                  {NUTRIENT_ROWS.map(([label, key, unit]) => (
-                    <div key={key} className="nutrient-row">
-                      <span>{label}</span>
-                      <span className="mono">{selectedNutrients[key]} {unit}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-        </>
-      ) : tab === "log" ? (
-        <>
-          <p className="section-label" style={{ marginTop: 14 }}>Log a Food You Ate</p>
-          <div className="field-row food-log-form">
-            <div className="field">
-              <select value={logChoice} onChange={(e) => setLogChoice(e.target.value)}>
-                {foodOptions.map((name) => (
-                  <option key={name} value={name}>{name}</option>
-                ))}
-              </select>
-            </div>
-            <button className="btn btn-primary food-log-btn" type="button" onClick={logFood} disabled={logSaving || !logChoice}>
-              {logSaving ? "Logging…" : "Log it"}
+        </div>
+        <div className="category-tabs">
+          {CATEGORIES.map((c) => (
+            <button
+              key={c}
+              type="button"
+              className={category === c ? "selected" : ""}
+              onClick={() => setCategory(c)}
+            >
+              {c}
             </button>
-          </div>
-          {logError && <p className="settings-row-hint">{logError}</p>}
+          ))}
+        </div>
+      </div>
 
-          <p className="section-label">Recent Food Log</p>
-          <ul className="food-log-list">
-            {logHistory === null && <li className="food-log-empty">Loading…</li>}
-            {logHistory && logHistory.length === 0 && (
-              <li className="food-log-empty">Nothing logged yet — pick a food above and log it.</li>
-            )}
-            {logHistory && logHistory.map((entry) => (
-              <li key={entry.id}>
-                <FoodItem
-                  name={entry.food_name}
-                  variant="row"
-                  trailing={<span className="food-log-time mono">{formatHistoryTimestamp(entry.logged_at)}</span>}
-                />
-              </li>
-            ))}
-          </ul>
-        </>
+      {catalog.length === 0 ? (
+        <p className="section-label" style={{ marginTop: 14 }}>Loading the real food catalog…</p>
       ) : (
-        <>
-          {history === null ? (
-            <p className="section-label" style={{ marginTop: 14 }}>
-              Loading your real check-in history…
-            </p>
-          ) : history.length === 0 ? (
-            <>
-              <p className="section-label" style={{ marginTop: 14 }}>Today's Food Recommendation</p>
-              <FoodGroup foods={snacks.slice(0, MAX_DISPLAYED_FOODS)} selected={selected} onSelect={selectFood} lang={lang} />
-            </>
-          ) : (
-            <>
-              <div className="nutrition-date-row" style={{ marginTop: 14 }}>
-                <label htmlFor="nutrition-date-input" className="section-label" style={{ margin: 0 }}>
-                  Date
-                </label>
-                <input
-                  type="date"
-                  id="nutrition-date-input"
-                  value={selectedDate}
-                  onChange={(e) => handleDateChange(e.target.value)}
-                />
-                <label htmlFor="nutrition-time-input" className="section-label" style={{ margin: 0 }}>
-                  Time
-                </label>
-                <input
-                  type="time"
-                  id="nutrition-time-input"
-                  value={selectedTime}
-                  onChange={(e) => handleTimeChange(e.target.value)}
-                  disabled={entriesForSelectedDate.length === 0}
-                />
-                {selectedTime && (
-                  <button type="button" className="nutrition-time-clear" onClick={() => handleTimeChange("")}>
-                    Clear
-                  </button>
-                )}
+        <div className="food-grid">
+          {shownList.map((f) => {
+            const trans = getFoodTranslations(f.food_name);
+            const cat = getFoodCategory(f.food_name);
+            const image = foodImageUrl(f.food_name);
+            const recommended = snacks.includes(f.food_name);
+            return (
+              <div className="food-card" key={f.food_name}>
+                <div className="food-card-top">
+                  <div className="food-emoji">
+                    {image ? <img src={image} alt="" loading="lazy" /> : <span aria-hidden="true">{CATEGORY_EMOJI[cat]}</span>}
+                  </div>
+                  <span className="food-category">{cat}</span>
+                </div>
+                <h3>{f.food_name}</h3>
+                <div className="food-translations"><span>{trans.ta}</span><span>{trans.si}</span></div>
+                <div className="food-nutrients">
+                  <div><b>{Math.round(f.calories)}</b><small>kcal</small></div>
+                  <div><b>{Math.round(f.water_ml)}%</b><small>water</small></div>
+                  <div><b>{f.fat_g}g</b><small>fat</small></div>
+                </div>
+                <div className="food-card-bottom">
+                  <div><b>Rs. {f.price_lkr}</b><small>Estimated serving price*</small></div>
+                  <span className={"available-tag" + (recommended ? " recommended-tag" : "")}>
+                    ✓ {recommended ? "Recommended" : "Available"}
+                  </span>
+                </div>
               </div>
-              {selectedTime && displayedEntries.length > 0 && (
-                <p className="section-label" style={{ marginTop: -6, marginBottom: 10 }}>
-                  Closest real check-in to {selectedTime}: {formatHistoryTimestamp(displayedEntries[0].detected_at)}
-                </p>
-              )}
-              {displayedEntries.length === 0 ? (
-                <p className="section-label" style={{ marginTop: 10 }}>
-                  No check-in on this date.
-                </p>
-              ) : (
-                displayedEntries.map((entry, i) => {
-              const isOpen = openEntry === entry.mood_id;
-              const expanded = expandedEntries.has(entry.mood_id);
-              const shownFoods = expanded ? entry.foods : entry.foods.slice(0, MAX_DISPLAYED_FOODS);
-              const moodLabel = entry.mood.charAt(0).toUpperCase() + entry.mood.slice(1);
-              return (
-                <div key={entry.mood_id} className="nutrition-history-entry">
-                  <button
-                    type="button"
-                    className={"nutrition-history-header" + (isOpen ? " open" : "")}
-                    style={{ marginTop: i === 0 ? 14 : 10 }}
-                    onClick={() => setOpenEntry(isOpen ? null : entry.mood_id)}
-                  >
-                    <span className="section-label" style={{ margin: 0 }}>
-                      {formatHistoryTimestamp(entry.detected_at)}
-                      {" — "}
-                      {moodLabel}
-                      {entry.subject ? ` (${entry.subject})` : ""}
-                    </span>
-                    <span className="nutrition-history-chevron">{isOpen ? "▲" : "▼"}</span>
-                  </button>
+            );
+          })}
+        </div>
+      )}
+      {remainingCount > 0 && (
+        <p className="footnote" style={{ marginTop: 10 }}>+{remainingCount} more foods match this filter</p>
+      )}
+      {catalog.length > 0 && list.length === 0 && (
+        <div className="empty-state">
+          <span aria-hidden="true">🔎</span>
+          <b>No foods found</b>
+          <p>Try another search term or category.</p>
+        </div>
+      )}
+      <p className="footnote">
+        *Serving prices and nutrient values are sourced from the real USDA dataset — not placeholders.
+      </p>
+    </div>
 
-                  {isOpen && (
-                    <FoodGroup
-                      foods={shownFoods}
-                      selected={selected}
-                      onSelect={selectFood}
-                      lang={lang}
-                      expandButton={
-                        entry.foods.length > MAX_DISPLAYED_FOODS && (
-                          <button
-                            type="button"
-                            className="nutrition-history-expand"
-                            onClick={() => toggleExpanded(entry.mood_id)}
-                          >
-                            {expanded ? "Show fewer" : `+${entry.foods.length - MAX_DISPLAYED_FOODS} more match this mood`}
-                          </button>
-                        )
-                      }
-                    />
-                  )}
-                </div>
-                  );
-                })
-              )}
-            </>
+    {popupFood && (
+      <div className="popup-overlay" onClick={() => setPopupFood(null)}>
+        <div className="popup-card" onClick={(e) => e.stopPropagation()}>
+          {foodImageUrl(popupFood) && (
+            <img className="popup-food-image" src={foodImageUrl(popupFood)} alt="" />
           )}
-
-          {selected && (
-            <div className="nutrition-details">
-              <p className="section-label">Nutrition Details — {selected}</p>
-              {loadError && <p className="settings-row-hint">{loadError}</p>}
-              {selectedNutrients && (
-                <div className="nutrient-rows">
-                  {NUTRIENT_ROWS.map(([label, key, unit]) => (
-                    <div key={key} className="nutrient-row">
-                      <span>{label}</span>
-                      <span className="mono">{selectedNutrients[key]} {unit}</span>
-                    </div>
-                  ))}
+          <h3 className="heading-font">{popupFood}</h3>
+          {popupError && <p>{popupError}</p>}
+          {popupNutrients && (
+            <div className="nutrient-rows">
+              {Object.entries(NUTRIENT_LABELS).map(([key, [label, unit]]) => (
+                <div key={key} className="nutrient-row">
+                  <span>{label}</span>
+                  <span className="mono">{popupNutrients[key]} {unit}</span>
                 </div>
-              )}
+              ))}
             </div>
           )}
-        </>
-      )}
-    </div>
+          <button className="btn btn-ghost" type="button" onClick={() => setPopupFood(null)}>Close</button>
+        </div>
+      </div>
+    )}
+    </>
   );
 }

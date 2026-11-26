@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { initials } from "../../../data/moods";
 import { NOTIFICATIONS_ENABLED_KEY, WEBCAM_DISABLED_KEY, isWebcamDisabledByUser } from "../../../data/preferences";
+import CardHead from "../shared/CardHead";
 import "./SettingsPanel.css";
 
 function Switch({ on, onClick, label }) {
@@ -113,50 +114,82 @@ export default function SettingsPanel({ student, theme, onToggleTheme, onLogout,
   }
 
   return (
-    <div className="dash-card" style={{ gridColumn: "1 / -1" }}>
-      <div className="settings-list">
-        <div className="settings-row">
-          <div className="settings-row-left">
-            <div className="settings-avatar">
-              {student.photoDataUrl ? <img src={student.photoDataUrl} alt="" /> : initials(student.name)}
-            </div>
-            <div>
-              <div className="settings-row-label">{student.name}</div>
-              <div className="settings-row-hint">{student.classLine}</div>
-            </div>
+    <>
+      <div className="dash-card">
+        <CardHead icon="👤" title="Profile information" sub="Your student account details" />
+        <div className="profile-edit">
+          <div className="settings-avatar">
+            {student.photoDataUrl ? <img src={student.photoDataUrl} alt="" /> : initials(student.name)}
+          </div>
+          <div>
+            <b>{student.name}</b>
+            <small>{student.classLine}</small>
           </div>
         </div>
+        <div className="readonly-field">
+          Student account <span>Active</span>
+        </div>
+      </div>
 
-        <div className="settings-row">
-          <div className="settings-row-left">
-            <span className="settings-row-icon">📷</span>
-            <div>
-              <div className="settings-row-label">Webcam Permission</div>
-              <div className="settings-row-hint">{webcamHint}</div>
-            </div>
+      <div className="dash-card">
+        <CardHead icon="☀️" title="Appearance" sub="Choose how EduEats looks on your device" />
+        <div className="theme-options">
+          <button
+            type="button"
+            className={"theme-choice" + (theme === "light" ? " chosen" : "")}
+            onClick={() => theme !== "light" && onToggleTheme()}
+          >
+            <div className="theme-preview light-preview"><div /><i /><i /></div>
+            <b>☀️ Light mode</b>
+            <small>Clean, bright workspace</small>
+            {theme === "light" && <span className="theme-check">✓</span>}
+          </button>
+          <button
+            type="button"
+            className={"theme-choice" + (theme === "dark" ? " chosen" : "")}
+            onClick={() => theme !== "dark" && onToggleTheme()}
+          >
+            <div className="theme-preview dark-preview"><div /><i /><i /></div>
+            <b>🌙 Dark mode</b>
+            <small>Comfortable in low light</small>
+            {theme === "dark" && <span className="theme-check">✓</span>}
+          </button>
+        </div>
+        <div className="settings-note">ℹ️ Light mode is the default when you first open EduEats. Your manual choice is applied immediately.</div>
+      </div>
+
+      <div className="dash-card">
+        <CardHead icon="🛡️" title="Privacy & camera" sub="How mood check-ins are handled" />
+        <div className="setting-row">
+          <div>
+            <b>Webcam Permission</b>
+            <small>{webcamHint}</small>
           </div>
           <Switch on={webcamEnabled} onClick={handleWebcamToggle} label="Toggle webcam permission" />
         </div>
+        <div className="setting-row">
+          <div>
+            <b>Face photo history</b>
+            <small>No gallery or saved face-photo history is kept — frames are discarded after analysis.</small>
+          </div>
+          <span className="disabled-label">Not stored</span>
+        </div>
+      </div>
 
-        <div className="settings-row">
-          <div className="settings-row-left">
-            <span className="settings-row-icon">🔔</span>
-            <div>
-              <div className="settings-row-label">Notifications & Reminders</div>
-              <div className="settings-row-hint">{remindersHint}</div>
-            </div>
+      <div className="dash-card">
+        <CardHead icon="🔔" title="Account actions" sub="Notifications, language and your session" />
+        <div className="setting-row">
+          <div>
+            <b>Notifications & Reminders</b>
+            <small>{remindersHint}</small>
           </div>
           <Switch on={remindersEnabled} onClick={handleRemindersToggle} label="Toggle notifications and reminders" />
         </div>
-
         {lang && onLangChange && (
-          <div className="settings-row">
-            <div className="settings-row-left">
-              <span className="settings-row-icon">🌐</span>
-              <div>
-                <div className="settings-row-label">Language</div>
-                <div className="settings-row-hint">Changes every page's text immediately</div>
-              </div>
+          <div className="setting-row">
+            <div>
+              <b>Language</b>
+              <small>Changes every page's text immediately</small>
             </div>
             <div className="settings-lang-group" role="group" aria-label="Language">
               {LANGUAGES.map((l) => (
@@ -172,25 +205,10 @@ export default function SettingsPanel({ student, theme, onToggleTheme, onLogout,
             </div>
           </div>
         )}
-
-        <button className="settings-row settings-row-button" type="button" onClick={onToggleTheme}>
-          <div className="settings-row-left">
-            <span className="settings-row-icon">{theme === "dark" ? "🌙" : "☀️"}</span>
-            <div>
-              <div className="settings-row-label">Theme</div>
-              <div className="settings-row-hint">Currently {theme === "dark" ? "Dark" : "Light"} mode — tap to switch</div>
-            </div>
-          </div>
-          <span className="settings-row-chevron">›</span>
-        </button>
-
-        <button className="settings-row settings-row-button settings-row-danger" type="button" onClick={onLogout}>
-          <div className="settings-row-left">
-            <span className="settings-row-icon">🚪</span>
-            <div className="settings-row-label">Log Out</div>
-          </div>
+        <button className="btn-danger" type="button" onClick={onLogout}>
+          🚪 Log out
         </button>
       </div>
-    </div>
+    </>
   );
 }

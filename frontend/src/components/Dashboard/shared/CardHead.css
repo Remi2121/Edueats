@@ -1,0 +1,27 @@
+.card-head-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 18px;
+}
+.card-head-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  background: var(--accent-light);
+  color: var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+  flex-shrink: 0;
+}
+.card-head-copy { min-width: 0; }
+.card-head-copy h2 { margin: 0; }
+.card-head-copy p {
+  margin: 3px 0 0;
+  font-size: 0.78rem;
+  color: var(--ink-soft);
+  font-weight: 500;
+}
+.card-head-action { margin-left: auto; flex-shrink: 0; }

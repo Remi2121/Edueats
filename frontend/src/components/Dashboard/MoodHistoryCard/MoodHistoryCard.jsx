@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { formatHistoryTimestamp } from "../../../data/moods";
 import { foodImageUrl } from "../../../data/foodImages";
+import CardHead from "../shared/CardHead";
 import "./MoodHistoryCard.css";
 
 const API_BASE = "http://localhost:3000";
@@ -139,8 +140,7 @@ export default function MoodHistoryCard({ hidden, focused, studentId }) {
 
   return (
     <div className={"dash-card" + (hidden ? " hide" : "") + (focused ? " focused" : "")}>
-      <h2 className="heading-font">Mood &amp; Food History</h2>
-      <p className="section-label" style={{ marginBottom: 10 }}>Pick a date to see that day's real check-ins</p>
+      <CardHead icon="📜" title="Mood history" sub="Pick a date to see that day's real check-ins" />
 
       {history === null ? (
         <p className="section-label" style={{ textTransform: "none", letterSpacing: "normal" }}>Loading…</p>

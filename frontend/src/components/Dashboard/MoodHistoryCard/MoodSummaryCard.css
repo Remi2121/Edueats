@@ -6,23 +6,19 @@
 .mood-week-tab.active{ background:var(--accent); border-color:var(--accent); color:var(--accent-contrast); }
 .mood-week-tab.empty{ opacity:0.5; }
 
+/* a week with no check-ins stays the plain neutral surface; a week with a
+   real detected mood tints the whole panel with that mood's own color
+   (same tokens used for the chip elsewhere) so the result reads as "this
+   week felt like X" rather than a small badge in an otherwise blank box. */
 .mood-week-detail{
   margin-top:16px; padding:18px; border-radius:17px;
   background:var(--surface-alt); border:1px solid var(--line);
 }
-.mood-week-range{ font-size:0.72rem; color:var(--ink-soft); margin:0 0 12px; }
+.mood-week-detail.has-mood{ border-color:transparent; }
+.mood-week-range{ font-size:0.76rem; opacity:0.75; margin:0 0 10px; }
 
-.mood-chip-lg{
-  display:inline-flex; align-items:center; gap:8px;
-  font: 800 1.15rem "Manrope", sans-serif;
-  padding:10px 20px; border-radius:999px; margin-bottom:14px;
-}
+.mood-week-headline{ font: 800 1.1rem "Manrope", sans-serif; margin:0 0 4px; }
+.mood-week-sub{ font-size:0.8rem; opacity:0.75; margin:0 0 10px; }
 
 .mood-week-foods{ display:flex; flex-wrap:wrap; gap:8px; }
-.mood-week-food-chip{
-  display:inline-flex; align-items:center; gap:6px;
-  background:var(--surface); border:1px solid var(--line); color:var(--ink); font-size:0.78rem; font-weight:600;
-  padding:5px 12px 5px 5px; border-radius:999px;
-}
-.mood-week-food-chip img{ width:22px; height:22px; border-radius:50%; object-fit:cover; }
-.mood-week-food-more{ font-size:0.76rem; color:var(--ink-soft); align-self:center; font-weight:600; }
+.mood-week-food-more{ font-size:0.76rem; opacity:0.75; align-self:center; font-weight:600; }

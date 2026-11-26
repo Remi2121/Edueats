@@ -79,6 +79,21 @@
 }
 .page-intro .date { margin: 6px 0 0; color: var(--ink-soft); font-size: 0.84rem; font-weight: 500; }
 
+.live-badge-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 13px;
+  background: var(--accent-light);
+  color: var(--accent);
+  font-size: 0.72rem;
+  font-weight: 700;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+.live-badge-chip i { width: 7px; height: 7px; border-radius: 50%; background: var(--ink-soft); display: inline-block; }
+.live-badge-chip.on i { background: #EF4444; box-shadow: 0 0 0 4px rgba(239, 68, 68, 0.15); }
+
 .topbar-right {
   display: flex;
   align-items: center;
@@ -176,7 +191,6 @@
   box-shadow: var(--shadow-lg), 0 0 24px rgba(5, 138, 85, 0.08);
   border-color: var(--line-strong);
 }
-.dash-card.session-card { grid-column: 1 / -1; }
 .dash-card.focused { grid-column: 1 / -1; }
 .dash-card h2 {
   font: 800 1.1rem "Manrope", sans-serif;

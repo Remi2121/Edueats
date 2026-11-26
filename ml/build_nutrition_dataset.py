@@ -2,14 +2,11 @@
 Builds data/nutrition_dataset.csv from real USDA FoodData Central files.
 
 Source data (not in git - download instructions in EduEats README/progress log):
-  datasets/usda_sr_legacy/   <- unzipped FoodData_Central_sr_legacy_food_csv_2018-04.zip
-  datasets/usda_foundation/  <- unzipped FoodData_Central_foundation_food_csv_2026-04-30.zip
+  ../datasets/usda_sr_legacy/   <- unzipped FoodData_Central_sr_legacy_food_csv_2018-04.zip
+  ../datasets/usda_foundation/  <- unzipped FoodData_Central_foundation_food_csv_2026-04-30.zip
 Both downloaded from https://fdc.nal.usda.gov/download-datasets.html
 
 Re-run this any time to rebuild the CSV (e.g. after changing TARGET_FOODS below).
-
-Note: this repo keeps datasets/ directly inside the project folder (same convention
-as data.py's DATA_DIR here) - the reference repo keeps it one level up instead.
 """
 
 import csv
@@ -17,8 +14,8 @@ import glob
 import os
 import re
 
-SR_LEGACY_DIR = glob.glob("datasets/usda_sr_legacy/FoodData_Central_sr_legacy_food_csv_*")[0]
-FOUNDATION_DIR = glob.glob("datasets/usda_foundation/FoodData_Central_foundation_food_csv_*")[0]
+SR_LEGACY_DIR = glob.glob("../datasets/usda_sr_legacy/FoodData_Central_sr_legacy_food_csv_*")[0]
+FOUNDATION_DIR = glob.glob("../datasets/usda_foundation/FoodData_Central_foundation_food_csv_*")[0]
 OUTPUT_PATH = "data/nutrition_dataset.csv"
 
 # USDA's classic nutrient reference numbers (nutrient_nbr column in nutrient.csv).
@@ -237,6 +234,45 @@ LOCAL_INFO = {
 }
 
 
+# Real food-group classification (Fruit/Vegetable/Dairy/Nuts/Grain/Protein),
+# used to power the category filter on the My Nutrition page. Legumes are
+# grouped under Protein (a common nutrition-app convention) rather than
+# invented as their own tab. "Other" covers sweets/beverages that don't
+# belong in any of those six groups - an honest label, not a fabricated one.
+CATEGORY = {
+    "Watermelon": "Fruit", "Cantaloupe": "Fruit", "Honeydew melon": "Fruit", "Orange": "Fruit",
+    "Grapefruit": "Fruit", "Strawberries": "Fruit", "Pineapple": "Fruit", "Peach": "Fruit",
+    "Pear": "Fruit", "Apple": "Fruit", "Banana": "Fruit", "Grapes": "Fruit", "Kiwifruit": "Fruit",
+    "Mango": "Fruit", "Cherries": "Fruit", "Blueberries": "Fruit", "Raspberries": "Fruit",
+    "Papaya": "Fruit", "Avocado": "Fruit",
+    "Lettuce": "Vegetable", "Cabbage": "Vegetable", "Celery": "Vegetable", "Zucchini": "Vegetable",
+    "Cauliflower": "Vegetable", "Broccoli": "Vegetable", "Spinach": "Vegetable", "Kale": "Vegetable",
+    "Carrot": "Vegetable", "Tomato": "Vegetable", "Bell pepper": "Vegetable", "Cucumber": "Vegetable",
+    "Radish": "Vegetable", "Asparagus": "Vegetable", "Green beans": "Vegetable",
+    "Sweet potato": "Vegetable", "Potato": "Vegetable", "Sweet corn": "Vegetable",
+    "Mushroom": "Vegetable", "Onion": "Vegetable", "Beet": "Vegetable",
+    "Brussels sprouts": "Vegetable", "Collard greens": "Vegetable",
+    "White rice, cooked": "Grain", "Brown rice, cooked": "Grain", "Oats": "Grain",
+    "Whole wheat bread": "Grain", "White bread": "Grain", "Pasta, cooked": "Grain",
+    "Quinoa, cooked": "Grain", "Barley, cooked": "Grain",
+    "Whole milk": "Dairy", "Skim milk": "Dairy", "Greek yogurt": "Dairy", "Plain yogurt": "Dairy",
+    "Cheddar cheese": "Dairy", "Mozzarella cheese": "Dairy", "Parmesan cheese": "Dairy",
+    "Feta cheese": "Dairy", "Cottage cheese": "Dairy",
+    "Chicken breast, roasted": "Protein", "Chicken thigh, roasted": "Protein",
+    "Turkey breast, roasted": "Protein", "Lean ground beef, cooked": "Protein",
+    "Pork loin, roasted": "Protein", "Salmon, cooked": "Protein", "Tuna, canned": "Protein",
+    "Shrimp, cooked": "Protein", "Egg, boiled": "Protein", "Tofu": "Protein",
+    "Chickpeas, cooked": "Protein", "Black beans, cooked": "Protein", "Lentils, cooked": "Protein",
+    "Kidney beans, cooked": "Protein",
+    "Almonds": "Nuts", "Walnuts": "Nuts", "Cashews": "Nuts", "Peanuts": "Nuts",
+    "Peanut butter": "Nuts", "Sunflower seeds": "Nuts", "Pumpkin seeds": "Nuts",
+    "Coconut water": "Other", "Potato chips": "Other", "Popcorn": "Other",
+    "Chocolate chip cookies": "Other", "Dark chocolate": "Other", "Milk chocolate": "Other",
+    "Granulated sugar": "Other", "Ice cream": "Other", "Orange juice": "Other",
+    "Apple juice": "Other", "Green tea, brewed": "Other", "Coffee, brewed": "Other", "Cola": "Other",
+}
+
+
 def load_food_table(directory, wanted_data_type):
     foods = {}
     with open(os.path.join(directory, "food.csv"), newline="", encoding="utf-8") as f:
@@ -305,6 +341,9 @@ def main():
     missing_local_info = [name for name, *_ in TARGET_FOODS if name not in LOCAL_INFO]
     if missing_local_info:
         raise ValueError(f"LOCAL_INFO is missing an entry for: {missing_local_info}")
+    missing_category = [name for name, *_ in TARGET_FOODS if name not in CATEGORY]
+    if missing_category:
+        raise ValueError(f"CATEGORY is missing an entry for: {missing_category}")
 
     for name, required, preferred, avoid in TARGET_FOODS:
         fdc_id = find_best_match(sr_foods, required, preferred, avoid)
@@ -326,13 +365,13 @@ def main():
                     break
             row.append(round(amount, 2) if amount is not None else 0.0)
         tamil_name, sinhala_name, price_lkr = LOCAL_INFO[name]
-        row.extend([tamil_name, sinhala_name, price_lkr])
+        row.extend([tamil_name, sinhala_name, price_lkr, CATEGORY[name]])
         rows.append((row, matched_desc))
 
     with open(OUTPUT_PATH, "w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
         writer.writerow(["food_name", "calories", "fat_g", "sugar_g", "water_ml", "magnesium_mg",
-                          "vitamin_b_mg", "tamil_name", "sinhala_name", "price_lkr"])
+                          "vitamin_b_mg", "tamil_name", "sinhala_name", "price_lkr", "category"])
         for row, _ in rows:
             writer.writerow(row)
 

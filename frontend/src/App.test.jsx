@@ -21,11 +21,29 @@ async function signUpAndReachProfile() {
 
 beforeEach(() => {
   localStorage.clear(); // each test starts signed out, never reusing a previous test's saved session
+  // Dashboard fetches several real array-shaped endpoints on mount (moods,
+  // nutrition, alerts, focus, posture-alerts, sessions/week, foods/full) —
+  // these need an empty-array response, not the signup/profile object below,
+  // or components that call .map()/.slice() on the result crash.
   vi.stubGlobal(
     "fetch",
-    vi.fn().mockResolvedValue({
-      ok: true,
-      json: () => Promise.resolve({ id: 1, name: "Test Student", grade: "Grade 8", room_no: "214" }),
+    vi.fn((url) => {
+      if (
+        typeof url === "string" &&
+        /\/(moods|nutrition|alerts|focus|posture-alerts|foods(\/full)?)$/.test(url)
+      ) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
+      }
+      if (typeof url === "string" && url.includes("/sessions/week")) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve([]) });
+      }
+      if (typeof url === "string" && url.endsWith("/sessions/today")) {
+        return Promise.resolve({ ok: true, json: () => Promise.resolve({ totalMinutes: 0, sessions: [] }) });
+      }
+      return Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({ id: 1, name: "Test Student", grade: "Grade 8", room_no: "214" }),
+      });
     })
   );
 });
@@ -52,7 +70,7 @@ describe("App", () => {
     render(<App />);
     await signUpAndReachProfile();
     await userEvent.click(screen.getByText("Save & Continue"));
-    expect(await screen.findByText("Class Session")).toBeInTheDocument();
+    expect(await screen.findByText("Live camera")).toBeInTheDocument();
   });
 
   it("toggles data-theme on the document root", async () => {
@@ -66,9 +84,9 @@ describe("App", () => {
     render(<App />);
     await signUpAndReachProfile();
     await userEvent.click(screen.getByText("Save & Continue"));
-    await screen.findByText("Class Session");
+    await screen.findByText("Live camera");
     await userEvent.click(screen.getByText("Settings")); // Log Out now lives on the Settings page
-    await userEvent.click(screen.getByText("Log Out"));
+    await userEvent.click(screen.getByText(/log out/i, { selector: ".btn-danger" }));
     expect(screen.getByText("Sign in to EduEats")).toBeInTheDocument();
   });
 
@@ -76,13 +94,13 @@ describe("App", () => {
     const { unmount } = render(<App />);
     await signUpAndReachProfile();
     await userEvent.click(screen.getByText("Save & Continue"));
-    await screen.findByText("Class Session");
+    await screen.findByText("Live camera");
     unmount();
 
     // Simulates reopening the app in the same browser (new mount, same
     // localStorage) — it should skip sign-in entirely.
     render(<App />);
-    expect(screen.getByText("Class Session")).toBeInTheDocument();
+    expect(screen.getByText("Live camera")).toBeInTheDocument();
     expect(screen.queryByText("Sign in to EduEats")).not.toBeInTheDocument();
   });
 
@@ -90,9 +108,9 @@ describe("App", () => {
     const { unmount } = render(<App />);
     await signUpAndReachProfile();
     await userEvent.click(screen.getByText("Save & Continue"));
-    await screen.findByText("Class Session");
+    await screen.findByText("Live camera");
     await userEvent.click(screen.getByText("Settings")); // Log Out now lives on the Settings page
-    await userEvent.click(screen.getByText("Log Out"));
+    await userEvent.click(screen.getByText(/log out/i, { selector: ".btn-danger" }));
     unmount();
 
     render(<App />);

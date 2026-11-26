@@ -2,8 +2,10 @@ import { useEffect, useRef, useState } from "react";
 import { FilesetResolver, PoseLandmarker } from "@mediapipe/tasks-vision";
 import { isWebcamDisabledByUser } from "../../../data/preferences";
 import { foodImageUrl } from "../../../data/foodImages";
+import CardHead from "../shared/CardHead";
 import "./ClassSessionCard.css";
 import "../Overview/Overview.css";
+import "../../AuthFlow.css"; // reuses the .popup-overlay/.popup-card styles already defined there
 
 function formatTime(totalSeconds) {
   const m = Math.floor(totalSeconds / 60);
@@ -79,15 +81,16 @@ export default function ClassSessionCard({
   checkingIn,
   checkinError,
   result,
+  latestMood,
+  snacks,
   batchCount = 0,
   batchSize = 1,
   onTestCheckIn,
   testCheckingIn,
-  pipelineLog = [],
   testResult,
   testError,
 }) {
-  const [subjectInput, setSubjectInput] = useState("");
+  const [subjectInput, setSubjectInput] = useState("Mathematics");
   const [duration, setDuration] = useState("60");
   const [secondsLeft, setSecondsLeft] = useState(0);
   // Only pauses the visible session-duration countdown below — the camera
@@ -96,10 +99,63 @@ export default function ClassSessionCard({
   const [paused, setPaused] = useState(false);
   const [secondsUntilCheckin, setSecondsUntilCheckin] = useState(0);
   const [cameraError, setCameraError] = useState("");
+  const ambientAudioRef = useRef(null);
+  const [ambientActive, setAmbientActive] = useState(false);
+
+  function toggleAmbientSound() {
+    if (ambientActive) {
+      ambientAudioRef.current?.close?.();
+      ambientAudioRef.current = null;
+      setAmbientActive(false);
+    } else {
+      try {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (!AudioCtx) return;
+        const ctx = new AudioCtx();
+        const bufferSize = ctx.sampleRate * 2;
+        const buffer = ctx.createBuffer(1, bufferSize, ctx.sampleRate);
+        const data = buffer.getChannelData(0);
+        let lastOut = 0.0;
+        for (let i = 0; i < bufferSize; i++) {
+          const white = Math.random() * 2 - 1;
+          data[i] = (lastOut + 0.02 * white) / 1.02; // soothing brown noise (gentle rain)
+          lastOut = data[i];
+          data[i] *= 0.12;
+        }
+        const noise = ctx.createBufferSource();
+        noise.buffer = buffer;
+        noise.loop = true;
+        const gain = ctx.createGain();
+        gain.gain.value = 0.25;
+        noise.connect(gain);
+        gain.connect(ctx.destination);
+        noise.start();
+        ambientAudioRef.current = ctx;
+        setAmbientActive(true);
+      } catch {
+        setAmbientActive(false);
+      }
+    }
+  }
+
+  useEffect(() => {
+    return () => {
+      ambientAudioRef.current?.close?.();
+    };
+  }, []);
+  // Asked once before every session starts, since one webcam can only be
+  // used by one app at a time — if Zoom/Meet already has it, this app's
+  // camera requests will fail. Better to warn up front than let getUserMedia
+  // fail silently mid-class.
+  const [showZoomCheck, setShowZoomCheck] = useState(false);
+  const [showCameraConflictWarning, setShowCameraConflictWarning] = useState(false);
   // Live, continuously-updated posture reading (null until the pose model
   // has loaded and found a first clear view of shoulders/ears).
   const [postureStatus, setPostureStatus] = useState(null);
   const videoRef = useRef(null);
+  const camSlotRef = useRef(null); // stable spot the <video> returns to when the floating window closes
+  const [pipActive, setPipActive] = useState(false);
+  const pipSupported = typeof window !== "undefined" && "documentPictureInPicture" in window;
   const streamRef = useRef(null);
   const canvasRef = useRef(null);
   const stopRef = useRef(onStop);
@@ -126,7 +182,7 @@ export default function ClassSessionCard({
       setSecondsLeft((prev) => {
         if (prev <= 1) {
           clearInterval(id);
-          stopRef.current();
+          stopRef.current(false); // the real countdown reached zero on its own — not an early stop
           return 0;
         }
         return prev - 1;
@@ -141,7 +197,7 @@ export default function ClassSessionCard({
   // is ready, it repeats a check-in automatically every real 15 minutes
   // (PRODUCTION_CHECKIN_INTERVAL_SECONDS) — the student never has to click
   // anything for the automatic monitoring to happen. (For a fast, on-demand
-  // check instead of waiting, use the "Test Check-In" button below — it
+  // check instead of waiting, use the "Check in again" button below — it
   // doesn't wait for this interval at all.) A second, purely visual
   // countdown (secondsUntilCheckin) tracks the same cadence for the
   // "Next check-in" progress bar below.
@@ -192,6 +248,11 @@ export default function ClassSessionCard({
       if (streamRef.current) {
         streamRef.current.getTracks().forEach((t) => t.stop());
         streamRef.current = null;
+      }
+      // Close the floating camera window too, if the student had popped it
+      // out — otherwise it'd be left showing a dead, frozen stream.
+      if (pipSupported && window.documentPictureInPicture.window) {
+        window.documentPictureInPicture.window.close();
       }
     };
   }, [session.running]);
@@ -250,6 +311,20 @@ export default function ClassSessionCard({
     };
   }, [session.running]);
 
+  function handleStartClick() {
+    setShowZoomCheck(true);
+  }
+
+  function handleNotOnZoom() {
+    setShowZoomCheck(false);
+    handleStart();
+  }
+
+  function handleOnZoom() {
+    setShowZoomCheck(false);
+    setShowCameraConflictWarning(true);
+  }
+
   function handleStart() {
     const name = subjectInput.trim() || "Mathematics";
     setSecondsLeft(parseInt(duration, 10) * 60);
@@ -258,9 +333,38 @@ export default function ClassSessionCard({
     onStart(name, parseInt(duration, 10));
   }
 
+  // Manually clicking Finish with real time still left on the countdown
+  // counts as stopping early — the backend raises a real parent alert for
+  // this, distinct from the countdown simply running out on its own.
+  function handleStopClick() {
+    onStop(secondsLeft > 0);
+  }
+
+  // Pops the real <video> element itself (same live MediaStream, not a
+  // copy) into a small always-on-top floating window via Chrome's
+  // Document Picture-in-Picture API — so the camera preview can stay
+  // visible while the student has another app (e.g. Zoom) focused.
+  // Check-ins keep working exactly the same either way, since capturing a
+  // frame just reads from videoRef.current regardless of which document it
+  // currently lives in.
+  async function handlePopOut() {
+    if (!pipSupported || !videoRef.current) return;
+    const pipWindow = await window.documentPictureInPicture.requestWindow({ width: 300, height: 230 });
+    pipWindow.document.body.style.margin = "0";
+    pipWindow.document.body.style.background = "#000";
+    pipWindow.document.body.appendChild(videoRef.current);
+    setPipActive(true);
+    pipWindow.addEventListener("pagehide", () => {
+      if (camSlotRef.current && videoRef.current) {
+        camSlotRef.current.appendChild(videoRef.current);
+      }
+      setPipActive(false);
+    });
+  }
+
   // Grabs one still frame from the live video feed and hands it off as a
   // JPEG blob to whichever real check-in flow called this (the automatic
-  // batched one, or the manual test one below).
+  // batched one, or the manual "Check in again" one below).
   function captureFrame(onBlob) {
     const video = videoRef.current;
     const canvas = canvasRef.current;
@@ -278,19 +382,27 @@ export default function ClassSessionCard({
   }
   handleCheckInRef.current = handleCheckIn;
 
-  // Instant, on-demand check-in — captures a frame right now and sends it
-  // to the real backend/ML pipeline, same as the automatic flow, but shows
-  // the real progress live and reveals its own result immediately instead
-  // of waiting on the 15-minute interval or the 3-reading batch.
+  // Instant, on-demand check-in — captures a fresh frame right now and
+  // sends it to the real backend/ML pipeline, same as the automatic flow,
+  // but reveals its own result immediately instead of waiting on the
+  // 15-minute interval or the 3-reading batch. Shows a brief "photo
+  // captured" confirmation the instant the frame is actually grabbed.
+  const [justCaptured, setJustCaptured] = useState(false);
+  // Every click captures a new real photo, since the student may be
+  // testing a different expression/mood each time.
   function handleTestCheckIn() {
-    captureFrame(onTestCheckIn);
+    captureFrame((blob) => {
+      setJustCaptured(true);
+      setTimeout(() => setJustCaptured(false), 2500);
+      onTestCheckIn(blob);
+    });
   }
 
   // Renders at most MAX_DISPLAYED_FOODS chips plus a real count of how many
   // more real foods matched, rather than overflowing the card with all of
   // them (e.g. 93 for a mood with no nutrient rule).
-  function renderFoodChips(foods) {
-    const shown = foods.slice(0, MAX_DISPLAYED_FOODS);
+  function renderFoodChips(foods, full = false) {
+    const shown = full ? foods : foods.slice(0, MAX_DISPLAYED_FOODS);
     const remaining = foods.length - shown.length;
     return (
       <>
@@ -311,177 +423,294 @@ export default function ClassSessionCard({
     ((PRODUCTION_CHECKIN_INTERVAL_SECONDS - secondsUntilCheckin) / PRODUCTION_CHECKIN_INTERVAL_SECONDS) * 100
   );
 
-  return (
-    <div className={"dash-card session-card" + (hidden ? " hide" : "")}>
-      <h2 className="heading-font" style={{ marginBottom: 18 }}>Class Session</h2>
+  // The mood-result panel always shows something — the just-detected result
+  // from this session if there is one, otherwise the student's last known
+  // mood from history, same as the reference app's always-populated layout.
+  const shownMood = result ? result.mood : latestMood;
+  const shownFoods = result ? result.foods : snacks;
 
-      {!session.running && (
-        <div>
-          <div className="field-row">
-            <div className="field">
-              <label htmlFor="subject-input">Subject {subjectInput && <span className="subject-preview-icon">{subjectIcon(subjectInput)}</span>}</label>
-              <input
-                type="text"
-                id="subject-input"
-                placeholder="e.g. Mathematics"
-                value={subjectInput}
-                onChange={(e) => setSubjectInput(e.target.value)}
-              />
-            </div>
-            <div className="field">
-              <label htmlFor="duration-input">Duration</label>
-              <select id="duration-input" value={duration} onChange={(e) => setDuration(e.target.value)}>
-                <option value="30">30 min</option>
-                <option value="45">45 min</option>
-                <option value="60">60 min</option>
-                <option value="90">90 min</option>
-              </select>
-            </div>
+  return (
+    <div className={"study-layout" + (hidden ? " hide" : "")}>
+      <div className="dash-card study-left">
+        <div className="camera-top">
+          <div>
+            <h3 className="heading-font">Live camera</h3>
+            <small>Camera is used only for a temporary mood check</small>
           </div>
-          <button className="btn btn-primary heading-font" type="button" onClick={handleStart}>
-            Start Study Session
+          {pipSupported && (
+            <button
+              className="icon-btn"
+              type="button"
+              onClick={handlePopOut}
+              title="Picture in Picture"
+              disabled={!session.running || pipActive}
+            >
+              ⧉
+            </button>
+          )}
+        </div>
+
+        <div className="cam-window">
+          {session.running && <span className="live-badge">● Live</span>}
+          {session.running ? (
+            cameraError ? (
+              <p className="cam-caption" style={{ margin: 0 }}>{cameraError}</p>
+            ) : (
+              <>
+                <div ref={camSlotRef} className="cam-video-slot">
+                  {/* Always rendered by React, never conditionally removed — when popped
+                      out, handlePopOut moves this exact DOM node into the floating
+                      window imperatively, so React must never try to unmount it here. */}
+                  <video ref={videoRef} className="cam-video" autoPlay playsInline muted />
+                  {pipActive && (
+                    <p className="cam-caption cam-pip-notice">
+                      Camera preview is floating in its own window — check-ins keep working as normal.
+                    </p>
+                  )}
+                </div>
+                {checkingIn && (
+                  <div className="cam-ai-target" aria-hidden="true">
+                    <div className="cam-target-box">
+                      <span className="cam-target-label">🌿 ANALYZING MOOD…</span>
+                    </div>
+                  </div>
+                )}
+                <div className="camtools">
+                  <span title="Posture tracking active" aria-hidden="true">▣</span>
+                  <span title="Audio is muted" aria-hidden="true">🔇</span>
+                  <button
+                    type="button"
+                    className={`camtool-ambient ${ambientActive ? "active" : ""}`}
+                    title={ambientActive ? "Stop calming rain sound" : "Play calming rain focus sound"}
+                    aria-label={ambientActive ? "Stop calming rain sound" : "Play calming rain focus sound"}
+                    onClick={toggleAmbientSound}
+                  >
+                    {ambientActive ? "🌧️" : "🎧"}
+                  </button>
+                  <button
+                    type="button"
+                    title="Fullscreen preview"
+                    aria-label="Fullscreen preview"
+                    onClick={() => videoRef.current?.requestFullscreen?.()}
+                  >
+                    ⛶
+                  </button>
+                </div>
+              </>
+            )
+          ) : (
+            <div className="camera-placeholder">
+              <div className="camera-symbol" aria-hidden="true">📷</div>
+              <b>Camera is paused</b>
+              <span>Start a session to enable the camera</span>
+            </div>
+          )}
+        </div>
+        <canvas ref={canvasRef} style={{ display: "none" }} />
+
+        <div className="camera-foot">
+          <span>
+            <i className={"status-dot" + (session.running ? " on" : "")} />{" "}
+            {session.running ? "Camera connected" : "Camera inactive"}
+          </span>
+          <span>🛡️ Images processed then discarded</span>
+          {pipSupported && session.running && (
+            <button className="text-link" type="button" onClick={handlePopOut}>Pop out ↗</button>
+          )}
+        </div>
+
+        <div className="mood-result">
+          <div className="result-head">
+            <div>
+              <p className="eyebrow">LATEST MOOD CHECK</p>
+              <h3 className="heading-font" style={{ margin: 0 }}>How you're feeling</h3>
+            </div>
+            {session.running && (
+              <span className="last-checked">{checkingIn ? "Analyzing…" : result ? "Just now" : "Waiting"}</span>
+            )}
+          </div>
+          {shownMood ? (
+            <div className="detected-mood">
+              <div className="mood-illustration-small" style={{ background: shownMood.bg }} aria-hidden="true">
+                {shownMood.emoji}
+              </div>
+              <div>
+                <span className="mood-pill" style={{ background: shownMood.bg, color: shownMood.ink }}>
+                  {shownMood.emoji} {shownMood.name}
+                </span>
+                <p className="cam-caption" style={{ textAlign: "left", margin: "6px 0 0" }}>
+                  {shownMood.concerning
+                    ? "A nourishing snack and a short reset break may help."
+                    : "Keep your momentum with a balanced snack and hydration."}
+                </p>
+              </div>
+              <button
+                className="btn-outline"
+                type="button"
+                onClick={handleTestCheckIn}
+                disabled={!session.running || testCheckingIn || !!cameraError}
+              >
+                {testCheckingIn ? "Testing…" : "🔄 Check in again"}
+              </button>
+            </div>
+          ) : (
+            <p className="cam-caption" style={{ textAlign: "left" }}>No mood check-ins yet — start a session to begin.</p>
+          )}
+          {justCaptured && (
+            <p className="cam-caption" style={{ textAlign: "left", color: "var(--accent)", fontWeight: 600, marginTop: 8 }}>
+              📸 Photo captured — running the real pipeline now…
+            </p>
+          )}
+          {testError && <p className="cam-caption" style={{ textAlign: "left", color: "#d64545" }}>{testError}</p>}
+          {testResult && !testCheckingIn && (
+            <div className="checkin-result" style={{ textAlign: "left", marginTop: 10 }}>
+              <div className="result-mood-chip" style={{ background: testResult.mood.bg, color: testResult.mood.ink }}>
+                {testResult.mood.emoji} {testResult.mood.name} detected
+              </div>
+              {renderFoodChips(testResult.foods, true)}
+            </div>
+          )}
+        </div>
+
+        <div className="recommend-under">
+          <CardHead icon="🍎" title="Food suggestions" sub="Matched to your latest mood · Parent-approved only" />
+          {shownFoods && shownFoods.length ? (
+            renderFoodChips(shownFoods)
+          ) : (
+            <p className="cam-caption" style={{ textAlign: "left" }}>No available items. Ask your parent to review food restrictions.</p>
+          )}
+        </div>
+      </div>
+
+      <div className="study-right">
+        <div className="dash-card timer-panel">
+          <CardHead icon="⏱️" title="Study timer" sub="Your focused study time" />
+          <p className="big-timer">{session.running ? formatTime(secondsLeft) : "00:00"}</p>
+          <p className="timer-status">
+            <i className={session.running && !paused ? "pulse" : ""} />
+            {session.running ? (paused ? "Paused" : "Timer is running") : "Ready to begin"}
+            {session.running && <span> · {subjectIcon(session.subject)} {session.subject}</span>}
+          </p>
+
+          {!session.running && (
+            <>
+              <label htmlFor="subject-input">
+                Study subject {subjectInput && <span className="subject-preview-icon">{subjectIcon(subjectInput)}</span>}
+              </label>
+              <select id="subject-input" value={subjectInput} onChange={(e) => setSubjectInput(e.target.value)}>
+                <option value="Mathematics">Mathematics</option>
+                <option value="Science">Science</option>
+                <option value="English">English</option>
+                <option value="History">History</option>
+                <option value="Other">Other</option>
+              </select>
+              <label htmlFor="duration-input">Duration (minutes)</label>
+              <input
+                id="duration-input"
+                type="number"
+                min="1"
+                max="300"
+                value={duration}
+                onChange={(e) => setDuration(e.target.value)}
+              />
+            </>
+          )}
+
+          <button
+            className="btn btn-primary full heading-font"
+            type="button"
+            aria-label={session.running ? "Stop Session" : "Start Session"}
+            onClick={session.running ? handleStopClick : handleStartClick}
+          >
+            {session.running ? "⏸ Finish session" : "▶ Start session"}
           </button>
+          {session.running && (
+            <button
+              className="btn-ghost full"
+              type="button"
+              aria-label={paused ? "Resume" : "Pause"}
+              onClick={() => setPaused((p) => !p)}
+              style={{ marginTop: 8 }}
+            >
+              {paused ? "▶️ Resume" : "⏸️ Pause"}
+            </button>
+          )}
+        </div>
+
+        {session.running && (
+          <div className="dash-card">
+            <p className="section-label" style={{ marginBottom: 4 }}>Next check-in in {formatTime(secondsUntilCheckin)}</p>
+            <div className="weekly-progress-track"><div className="weekly-progress-fill" style={{ width: `${breakProgressPct}%` }} /></div>
+            <p className="cam-caption" style={{ marginTop: 10 }}>
+              {`Reading ${Math.min(batchCount + 1, batchSize)} of ${batchSize} — combines into one result once all ${batchSize} are in.`}
+            </p>
+            {checkinError && <p className="cam-caption" style={{ color: "#d64545" }}>{checkinError}</p>}
+            <p className="section-label" style={{ marginTop: 14, marginBottom: 4 }}>Posture</p>
+            {postureStatus ? (
+              <div className={"posture-chip posture-" + postureStatus}>
+                {postureStatus === "good" ? "🟢 Good" : "🟠 Needs adjusting"}
+              </div>
+            ) : (
+              <p className="cam-caption">Detecting…</p>
+            )}
+          </div>
+        )}
+
+        <div className="dash-card privacy-panel">
+          <div className="privacy-heading">🛡️ <b>Your privacy matters</b></div>
+          <p>Camera frames are temporarily processed for mood analysis. The captured image is discarded after processing.</p>
+          <div className="privacy-points">
+            <span>✓ No face-photo gallery</span>
+            <span>✓ No saved face images</span>
+            <span>✓ In-app mood history only</span>
+          </div>
+        </div>
+
+        <div className="dash-card session-tip">
+          <span className="tip-icon" aria-hidden="true">☕</span>
+          <div>
+            <b>Remember to take a break</b>
+            <p>A short pause can help you return to your work refreshed.</p>
+          </div>
+        </div>
+      </div>
+
+      {showZoomCheck && (
+        <div className="popup-overlay" onClick={() => setShowZoomCheck(false)}>
+          <div className="popup-card" onClick={(e) => e.stopPropagation()}>
+            <h3 className="heading-font">Quick check before you start</h3>
+            <p>Will your camera also be on in Zoom, Google Meet, or another video call during this class?</p>
+            <button className="btn btn-primary heading-font" type="button" onClick={handleNotOnZoom}>
+              No — just this app
+            </button>
+            <button className="btn btn-ghost" type="button" onClick={handleOnZoom}>
+              Yes, camera is on in Zoom/Meet
+            </button>
+          </div>
         </div>
       )}
 
-      {session.running && (
-        <div>
-          <div className="study-session-main">
-            <div>
-              <div className="card-head" style={{ marginBottom: 10 }}>
-                <h3 className="heading-font" style={{ margin: 0, fontSize: "0.92rem" }}>Live study preview</h3>
-                <span className="pill">● Real camera</span>
-              </div>
-              <div className="cam-window">
-                <span className="live-badge">● Live</span>
-                {cameraError ? (
-                  <p className="cam-caption" style={{ margin: 0 }}>{cameraError}</p>
-                ) : (
-                  <>
-                    <video ref={videoRef} className="cam-video" autoPlay playsInline muted />
-                    <div className="camtools">
-                      <span title="Posture tracking active" aria-hidden="true">▣</span>
-                      <span title="Audio is muted" aria-hidden="true">🔇</span>
-                      <button
-                        type="button"
-                        title="Fullscreen preview"
-                        aria-label="Fullscreen preview"
-                        onClick={() => videoRef.current?.requestFullscreen?.()}
-                      >
-                        ⛶
-                      </button>
-                    </div>
-                  </>
-                )}
-              </div>
-            </div>
-            <canvas ref={canvasRef} style={{ display: "none" }} />
-
-            <div className="detected-mood-panel">
-              <h3 className="heading-font" style={{ margin: "0 0 6px", fontSize: "0.92rem" }}>Your session 🌿</h3>
-              <p className="section-label">Detected Mood</p>
-              {result ? (
-                <div className="detected-mood-chip" style={{ background: result.mood.bg, color: result.mood.ink }}>
-                  {result.mood.emoji} {result.mood.name}
-                </div>
-              ) : (
-                <p className="cam-caption" style={{ margin: "4px 0 0" }}>
-                  {checkingIn ? "Detecting..." : "Waiting for the first check-in."}
-                </p>
-              )}
-
-              <p className="section-label" style={{ marginTop: 14 }}>Posture</p>
-              {postureStatus ? (
-                <div className={"posture-chip posture-" + postureStatus}>
-                  {postureStatus === "good" ? "🟢 Good" : "🟠 Needs adjusting"}
-                </div>
-              ) : (
-                <p className="cam-caption" style={{ margin: "4px 0 0" }}>Detecting...</p>
-              )}
-
-              <div className="focus-tip">
-                <p className="section-label" style={{ marginBottom: 4 }}>💡 Tip</p>
-                <p className="cam-caption" style={{ margin: 0 }}>
-                  Take a short break after each check-in and stay hydrated.
-                </p>
-              </div>
-            </div>
-          </div>
-
-          <div className="study-timer-row">
-            <div>
-              <p className="section-label" style={{ marginBottom: 4 }}>
-                Study Timer — {subjectIcon(session.subject)} {session.subject}
-              </p>
-              <p className="study-timer-display mono">{formatTime(secondsLeft)}</p>
-              <p className="cam-caption" style={{ margin: "2px 0 0" }}>{paused ? "Paused" : "Stay focused!"}</p>
-            </div>
-            <div className="study-timer-controls">
-              <button className="btn-icon" type="button" onClick={() => setPaused((p) => !p)} aria-label={paused ? "Resume" : "Pause"}>
-                {paused ? "▶️ Resume" : "⏸️ Pause"}
-              </button>
-              <button className="btn-icon btn-icon-stop" type="button" onClick={onStop} aria-label="Stop Session">⏹️ Stop</button>
-            </div>
-            <div className="next-break">
-              <p className="section-label" style={{ marginBottom: 4 }}>Next check-in in {formatTime(secondsUntilCheckin)}</p>
-              <div className="weekly-progress-track">
-                <div className="weekly-progress-fill" style={{ width: `${breakProgressPct}%` }} />
-              </div>
-            </div>
-          </div>
-
-          <p className="cam-caption" style={{ marginTop: 14 }}>
-            {`Reading ${Math.min(batchCount + 1, batchSize)} of ${batchSize} — combines into one result once all ${batchSize} are in.`}
-          </p>
-          {checkinError && (
-            <p className="cam-caption" style={{ color: "#d64545" }}>{checkinError}</p>
-          )}
-
-          {result && !checkingIn && (
-            <div className="checkin-result">
-              <div className="result-mood-chip" style={{ background: result.mood.bg, color: result.mood.ink }}>
-                {result.mood.emoji} {result.mood.name} detected
-              </div>
-              {renderFoodChips(result.foods)}
-            </div>
-          )}
-
-          <div className="test-checkin-block">
-            <button
-              className="btn btn-primary"
-              type="button"
-              onClick={handleTestCheckIn}
-              disabled={testCheckingIn || !!cameraError}
-            >
-              {testCheckingIn ? "Testing…" : "⚡ Test Check-In Now"}
-            </button>
-            <p className="cam-caption" style={{ margin: "6px 0 0" }}>
-              Runs the real pipeline right now and shows each real step below — no waiting for the 15-minute interval.
+      {showCameraConflictWarning && (
+        <div className="popup-overlay" onClick={() => setShowCameraConflictWarning(false)}>
+          <div className="popup-card" onClick={(e) => e.stopPropagation()}>
+            <h3 className="heading-font">One camera, one app at a time</h3>
+            <p>
+              A single webcam can only be used by one app at a time. Since Zoom/Meet already has
+              it, this app's mood check-ins won't be able to open the camera too — you'll need a
+              second/external webcam for both to work during the same class.
             </p>
-
-            {pipelineLog.length > 0 && (
-              <ul className="pipeline-log">
-                {pipelineLog.map((msg, i) => (
-                  <li key={i} className={i === pipelineLog.length - 1 && testCheckingIn ? "pipeline-log-current" : ""}>
-                    {msg}
-                  </li>
-                ))}
-              </ul>
-            )}
-
-            {testError && <p className="cam-caption" style={{ color: "#d64545" }}>{testError}</p>}
-
-            {testResult && !testCheckingIn && (
-              <div className="checkin-result">
-                <div className="result-mood-chip" style={{ background: testResult.mood.bg, color: testResult.mood.ink }}>
-                  {testResult.mood.emoji} {testResult.mood.name} detected
-                </div>
-                {renderFoodChips(testResult.foods)}
-              </div>
-            )}
-
-            <button className="btn-ghost" type="button" onClick={onStop} style={{ color: "#D6453B", marginTop: 10 }}>
-              ⏹️ Stop Class Session
+            <button
+              className="btn btn-primary heading-font"
+              type="button"
+              onClick={() => {
+                setShowCameraConflictWarning(false);
+                handleStart();
+              }}
+            >
+              I have a second camera — continue
+            </button>
+            <button className="btn btn-ghost" type="button" onClick={() => setShowCameraConflictWarning(false)}>
+              Cancel
             </button>
           </div>
         </div>

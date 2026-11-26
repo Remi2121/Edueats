@@ -45,17 +45,21 @@ export default function Alerts({ parent }) {
       {alerts === null ? (
         <Text style={s.sub}>Loading…</Text>
       ) : alerts.length === 0 ? (
-        <Text style={s.sub}>No alerts yet. A sustained concerning mood or poor posture during a study session will appear here.</Text>
+        <Text style={s.sub}>No alerts yet. A sustained concerning mood, poor posture, or an early-stopped session will appear here.</Text>
       ) : (
         <FlatList
           data={alerts}
           keyExtractor={(a) => `${a.type}-${a.id}`}
           renderItem={({ item }) => (
             <Pressable style={[s.row, item.is_read && s.rowRead]} onPress={() => !item.is_read && markRead(item)}>
-              <Text style={{ fontSize: 18 }}>{item.type === "mood" ? "😟" : "🧍"}</Text>
+              <Text style={{ fontSize: 18 }}>{item.type === "mood" ? "😟" : item.type === "posture" ? "🧍" : "⏹️"}</Text>
               <View style={{ flex: 1 }}>
                 <Text style={s.title}>
-                  {item.type === "mood" ? `${item.mood[0].toUpperCase()}${item.mood.slice(1)} mood detected` : "Poor posture detected"}
+                  {item.type === "mood"
+                    ? `${item.mood[0].toUpperCase()}${item.mood.slice(1)} mood detected`
+                    : item.type === "posture"
+                    ? "Poor posture detected"
+                    : `Stopped studying early${item.studied_min != null && item.duration_min ? ` (${item.studied_min} of ${item.duration_min} min)` : ""}`}
                   {item.subject ? ` · ${item.subject}` : ""}
                 </Text>
                 <Text style={s.sub}>{formatTime(item.sent_at)}</Text>

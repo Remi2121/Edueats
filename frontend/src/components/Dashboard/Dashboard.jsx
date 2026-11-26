@@ -5,15 +5,18 @@ import Sidebar from "./Sidebar/Sidebar";
 import ClassSessionCard from "./ClassSessionCard/ClassSessionCard";
 import MoodHistoryCard from "./MoodHistoryCard/MoodHistoryCard";
 import MoodSummaryCard from "./MoodHistoryCard/MoodSummaryCard";
-import MoodStatsCard from "./MoodHistoryCard/MoodStatsCard";
+import MoodFocusStats from "./MoodHistoryCard/MoodFocusStats";
 import MoodBySubjectCard from "./MoodBySubjectCard/MoodBySubjectCard";
+import FocusBySubjectCard from "./FocusBySubjectCard/FocusBySubjectCard";
 import NutritionCard from "./NutritionCard/NutritionCard";
 import AlertsCard from "./AlertsCard/AlertsCard";
 import PostureAlertsCard from "./AlertsCard/PostureAlertsCard";
 import StatRow from "./Overview/StatRow";
-import RecommendationCard from "./Overview/RecommendationCard";
-import QuickActionsCard from "./Overview/QuickActionsCard";
-import StudySummaryCard from "./Overview/StudySummaryCard";
+import SessionPreviewCard from "./Overview/SessionPreviewCard";
+import MoodFoodCheckCard from "./Overview/MoodFoodCheckCard";
+import StudyActivityCard from "./Overview/StudyActivityCard";
+import NutritionSnapshotCard from "./Overview/NutritionSnapshotCard";
+import AlertsPreviewCard from "./Overview/AlertsPreviewCard";
 import MoodTrendCard from "./Overview/MoodTrendCard";
 import ProgressPage from "./Progress/ProgressPage";
 import SubjectMoodTable from "./Progress/SubjectMoodTable";
@@ -36,9 +39,9 @@ const POSTURE_BATCH_SIZE = 3;
 
 const VIEW_SUBTITLES = {
   overview: "Stay focused, eat healthy, and learn better.",
-  study: "Focus on one thing at a time — you've got this.",
-  nutrition: "Food ideas and your daily food journal.",
-  moodfocus: "Explore your mood patterns and focus trends.",
+  study: "Settle in, choose a subject and let EduEats support your study session.",
+  nutrition: "Explore food suggestions in three languages, with serving prices and nutrition details.",
+  moodfocus: "Understand patterns in your study sessions over time.",
   progress: "Your effort adds up — look how far you've come.",
   settings: "Make EduEats feel right for you.",
 };
@@ -50,6 +53,10 @@ const VIEW_EYEBROWS = {
   progress: "YOUR CONSISTENCY",
   settings: "PERSONALISE YOUR SPACE",
 };
+// Breadcrumb label (top strip) — kept separate from the big page heading
+// below, since "study" uses a different phrase for each (matching the
+// approved reference mockup: breadcrumb says "Study Session", the heading
+// says "Your study room").
 const VIEW_TITLES = {
   overview: "Dashboard",
   study: "Study Session",
@@ -57,6 +64,9 @@ const VIEW_TITLES = {
   moodfocus: "Mood & Focus",
   progress: "My Progress",
   settings: "Settings",
+};
+const PAGE_HEADINGS = {
+  study: "Your study room",
 };
 const SEED_TIMELINE = [
   { moodName: "Neutral", when: "Mon 9:05 AM" }, { moodName: "Happy", when: "Mon 1:40 PM" },
@@ -202,11 +212,17 @@ export default function Dashboard({ student, onLogout, theme, onToggleTheme }) {
     }
   }
 
-  function handleStop() {
-    // Marks the real end time in the database so today's study-time total
-    // reflects how long the session actually ran.
+  // Marks the real end time in the database so today's study-time total
+  // reflects how long the session actually ran. `early` (true when the
+  // student clicked Finish with real countdown time still left) tells the
+  // backend to raise a real parent alert for stopping early.
+  function handleStop(early = false) {
     if (session.id) {
-      fetch(`${API_BASE}/api/sessions/${session.id}/end`, { method: "PATCH" })
+      fetch(`${API_BASE}/api/sessions/${session.id}/end`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ early }),
+      })
         .then(refreshFocusAndStudyTime)
         .catch(() => { });
     }
@@ -403,6 +419,12 @@ export default function Dashboard({ student, onLogout, theme, onToggleTheme }) {
     setLang(newLang);
   }
 
+  // Shared by the Overview and Mood & Focus stat rows — the mean of the
+  // real per-subject focus scores, null until enough check-ins exist.
+  const focusAvg = subjects.length
+    ? Math.round(subjects.reduce((sum, s) => sum + s.score, 0) / subjects.length)
+    : null;
+
   return (
     <div className="app-shell">
       <Sidebar activeView={activeView} onNavigate={setActiveView} onLogout={onLogout} lang={lang} student={student} />
@@ -437,10 +459,20 @@ export default function Dashboard({ student, onLogout, theme, onToggleTheme }) {
           <div>
             <p className="eyebrow">{VIEW_EYEBROWS[activeView]}</p>
             <h1 className="heading-font">
-              {activeView === "overview" ? `Hi, ${student.name.split(" ")[0]}! 👋` : VIEW_TITLES[activeView]}
+              {activeView === "overview" ? `Hi, ${student.name.split(" ")[0]}! 👋` : (PAGE_HEADINGS[activeView] || VIEW_TITLES[activeView])}
             </h1>
             <p className="date">{VIEW_SUBTITLES[activeView]}</p>
           </div>
+          {activeView === "study" && (
+            <span className={"live-badge-chip" + (session.running ? " on" : "")}>
+              <i /> {session.running ? "SESSION LIVE" : "NOT IN SESSION"}
+            </span>
+          )}
+          {activeView === "overview" && (
+            <button className="btn btn-primary" type="button" style={{ width: "auto", margin: 0 }} onClick={() => setActiveView("study")}>
+              ▶ Start studying
+            </button>
+          )}
         </div>
 
         {activeView === "overview" && (
@@ -458,21 +490,22 @@ export default function Dashboard({ student, onLogout, theme, onToggleTheme }) {
             <StatRow
               latestMood={latestMood}
               studyMinutes={studyMinutes}
-              focusAvg={subjects.length ? Math.round(subjects.reduce((sum, s) => sum + s.score, 0) / subjects.length) : null}
+              focusAvg={focusAvg}
               foodCount={snacks.length}
             />
-            <div className="overview-row">
-              <RecommendationCard snacks={snacks} onNavigate={setActiveView} lang={lang} />
-              <div className="overview-col">
-                <QuickActionsCard onNavigate={setActiveView} />
-                <StudySummaryCard latestMood={latestMood} nutritionOnTrack={!latestMood.concerning} studyMinutes={studyMinutes} />
-              </div>
-            </div>
-            <div className="dash-card hydration-tip">
-              <h2 className="heading-font">💡 Remember to hydrate</h2>
-              <p className="section-label" style={{ margin: 0 }}>Take a short break between sessions and drink some water.</p>
+            <div className="dash-grid">
+              <SessionPreviewCard session={session} onNavigate={setActiveView} />
+              <MoodFoodCheckCard latestMood={latestMood} snacks={snacks} onNavigate={setActiveView} />
+              <StudyActivityCard studentId={student.id} onNavigate={setActiveView} />
+              <NutritionSnapshotCard snacks={snacks} onNavigate={setActiveView} />
+              <FocusBySubjectCard subjects={subjects} />
+              <AlertsPreviewCard alerts={alerts} onNavigate={setActiveView} />
             </div>
           </>
+        )}
+
+        {activeView === "moodfocus" && (
+          <MoodFocusStats latestMood={latestMood} subjects={subjects} checkinsCount={timeline.length} />
         )}
 
         <section className="dash-grid">
@@ -486,6 +519,8 @@ export default function Dashboard({ student, onLogout, theme, onToggleTheme }) {
             checkingIn={checkingIn}
             checkinError={checkinError}
             result={lastResult}
+            latestMood={latestMood}
+            snacks={snacks}
             batchCount={pendingBatch.length}
             batchSize={CHECKIN_BATCH_SIZE}
             onTestCheckIn={handleTestCheckIn}
@@ -498,11 +533,11 @@ export default function Dashboard({ student, onLogout, theme, onToggleTheme }) {
 
           {activeView === "moodfocus" && (
             <>
-              <MoodStatsCard studentId={student.id} />
+              <MoodHistoryCard studentId={student.id} />
+              <MoodTrendCard entries={timeline} />
+              <FocusBySubjectCard focused subjects={subjects} />
               <MoodSummaryCard studentId={student.id} />
               <MoodBySubjectCard studentId={student.id} />
-              <MoodTrendCard entries={timeline} />
-              <MoodHistoryCard focused studentId={student.id} />
               <AlertsCard focused alerts={alerts} />
               <PostureAlertsCard alerts={postureAlerts} />
             </>

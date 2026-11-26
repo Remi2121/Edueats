@@ -1,9 +1,9 @@
 import "./FocusBySubjectCard.css";
 
-export default function FocusBySubjectCard({ hidden, subjects }) {
+export default function FocusBySubjectCard({ hidden, focused, subjects }) {
   const sorted = [...subjects].sort((a, b) => b.score - a.score);
   return (
-    <div className={"dash-card" + (hidden ? " hide" : "")}>
+    <div className={"dash-card" + (hidden ? " hide" : "") + (focused ? " focused" : "")}>
       <h2 className="heading-font">Focus by Subject</h2>
       <p className="section-label">Based on mood during each class today</p>
       <div className="subject-bar-list">

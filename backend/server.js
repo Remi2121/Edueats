@@ -65,13 +65,13 @@ const NUTRITION_CSV_PATH = path.join(ML_ROOT, "data", "nutrition_dataset.csv");
 const foodNutrients = {};
 fs.readFileSync(NUTRITION_CSV_PATH, "utf8")
   .trim()
-  .split("\n")
+  .split(/\r?\n/)
   .slice(1)
   .forEach((line) => {
     // food names can contain a comma inside quotes, e.g. "Barley, cooked"
     const cells = line.match(/(".*?"|[^,]+)(?=,|$)/g).map((c) => c.replace(/^"|"$/g, ""));
     const [food_name, calories, fat_g, sugar_g, water_ml, magnesium_mg, vitamin_b_mg,
-      tamil_name, sinhala_name, price_lkr] = cells;
+      tamil_name, sinhala_name, price_lkr, category] = cells;
     foodNutrients[food_name] = {
       food_name,
       calories: Number(calories),
@@ -83,6 +83,7 @@ fs.readFileSync(NUTRITION_CSV_PATH, "utf8")
       tamil_name,
       sinhala_name,
       price_lkr: Number(price_lkr),
+      category,
     };
   });
 
@@ -243,7 +244,29 @@ app.get("/api/parent/:id/child", async (req, res) => {
     [req.params.id]
   );
   if (!rows[0]) return res.status(404).json({ error: "Parent account not found" });
-  res.json(rows[0]);
+  const child = rows[0];
+
+  // Real live session status — a session with no ended_at yet is still
+  // running right now. The parent app polls this same endpoint, so it
+  // reflects a real session starting/stopping without any push/socket
+  // infrastructure (deliberately not built — in-app only, per the privacy
+  // feedback already on this project). A session whose own chosen duration
+  // has already elapsed without ever being stopped (tab closed, browser
+  // crashed) is treated as no longer live — same abandoned-session
+  // reasoning as the real study-minutes totals elsewhere.
+  const [liveRows] = await pool.query(
+    `SELECT subject, started_at, duration_min FROM sessions
+     WHERE student_id = ? AND ended_at IS NULL
+       AND TIMESTAMPDIFF(MINUTE, started_at, NOW()) < duration_min
+     ORDER BY started_at DESC LIMIT 1`,
+    [child.id]
+  );
+  child.studying_now = liveRows.length > 0;
+  child.live_subject = liveRows[0]?.subject || null;
+  child.live_started_at = liveRows[0]?.started_at || null;
+  child.live_duration_min = liveRows[0]?.duration_min || null;
+
+  res.json(child);
 });
 
 // real mood alerts + real posture alerts for a parent's linked student,
@@ -270,14 +293,25 @@ app.get("/api/parent/:id/alerts", async (req, res) => {
      WHERE pc.student_id = ?`,
     [student_id]
   );
-  const merged = [...moodAlerts, ...postureAlerts].sort((a, b) => new Date(b.sent_at) - new Date(a.sent_at));
+  const [sessionAlerts] = await pool.query(
+    `SELECT sa.id, 'session' AS type, sa.sent_at, (sa.read_at IS NOT NULL) AS is_read,
+            sa.reason, s.subject, s.duration_min,
+            TIMESTAMPDIFF(MINUTE, s.started_at, s.ended_at) AS studied_min
+     FROM session_alerts sa
+     JOIN sessions s ON sa.session_id = s.id
+     WHERE s.student_id = ?`,
+    [student_id]
+  );
+  const merged = [...moodAlerts, ...postureAlerts, ...sessionAlerts].sort((a, b) => new Date(b.sent_at) - new Date(a.sent_at));
   res.json(merged);
 });
 
 // marks one parent alert as read - ?type=mood (default) or ?type=posture,
 // since mood alerts and posture alerts live in two different tables
 app.patch("/api/parent/alerts/:id/read", async (req, res) => {
-  const table = req.query.type === "posture" ? "posture_alerts" : "alerts";
+  const table = req.query.type === "posture" ? "posture_alerts"
+    : req.query.type === "session" ? "session_alerts"
+    : "alerts";
   await pool.query(`UPDATE ${table} SET read_at = NOW() WHERE id = ?`, [req.params.id]);
   res.json({ id: Number(req.params.id), read: true });
 });
@@ -524,9 +558,18 @@ app.post("/api/sessions", async (req, res) => {
   res.json({ id: result.insertId, student_id, subject, duration_min });
 });
 
-// marks a session as finished — real elapsed time is computed from this
+// marks a session as finished — real elapsed time is computed from this.
+// If the student ended it manually before their own chosen duration had
+// actually elapsed (early: true, sent by the real countdown still having
+// time left when Finish was clicked), a real alert is raised for the parent.
 app.patch("/api/sessions/:id/end", async (req, res) => {
   await pool.query("UPDATE sessions SET ended_at = NOW() WHERE id = ?", [req.params.id]);
+  if (req.body?.early) {
+    await pool.query(
+      "INSERT INTO session_alerts (session_id, reason) VALUES (?, 'early_stop')",
+      [req.params.id]
+    );
+  }
   res.json({ id: Number(req.params.id) });
 });
 
@@ -594,6 +637,19 @@ app.get("/api/students/:id/sessions/week", async (req, res) => {
     result.push({ day: key, minutes: minutesByDay[key] || 0 });
   }
   res.json(result);
+});
+
+// real longest single session's minutes over the real last 7 (or 30, with
+// ?range=month) days — a genuine MAX(), not an estimate derived from the
+// per-day totals above (which can sum multiple sessions into one day).
+app.get("/api/students/:id/sessions/longest", async (req, res) => {
+  const days = req.query.range === "month" ? 29 : 6;
+  const [rows] = await pool.query(
+    `SELECT MAX(LEAST(TIMESTAMPDIFF(MINUTE, started_at, COALESCE(ended_at, NOW())), duration_min)) AS longest
+     FROM sessions WHERE student_id = ? AND started_at >= DATE_SUB(CURDATE(), INTERVAL ? DAY)`,
+    [req.params.id, days]
+  );
+  res.json({ longestMinutes: rows[0].longest || 0 });
 });
 
 // every real food name the rule engine knows about, for the My Food Log picker

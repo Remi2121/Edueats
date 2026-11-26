@@ -580,13 +580,6 @@ app.get("/api/students/:id/sessions/week", async (req, res) => {
   res.json(rows.map((r) => ({ day: r.day, minutes: Number(r.minutes) })));
 });
 
-// real nutrient values for one food, from the same CSV the rule engine uses
-app.get("/api/foods/:name", (req, res) => {
-  const food = foodNutrients[req.params.name];
-  if (!food) return res.status(404).json({ error: "Unknown food" });
-  res.json(food);
-});
-
 // every real food name the rule engine knows about, for the My Food Log picker
 app.get("/api/foods", (req, res) => {
   res.json(Object.keys(foodNutrients));
@@ -594,9 +587,18 @@ app.get("/api/foods", (req, res) => {
 
 // the full real food catalog (nutrients + tamil_name/sinhala_name/price_lkr),
 // fetched once by the frontend instead of per-food, so every food display
-// anywhere in the app can use real names/prices instead of a placeholder
+// anywhere in the app can use real names/prices instead of a placeholder.
+// Must be registered before the "/:name" route below, or Express matches
+// "full" as a food name there instead (and 404s before this ever runs).
 app.get("/api/foods/full", (req, res) => {
   res.json(Object.values(foodNutrients));
+});
+
+// real nutrient values for one food, from the same CSV the rule engine uses
+app.get("/api/foods/:name", (req, res) => {
+  const food = foodNutrients[req.params.name];
+  if (!food) return res.status(404).json({ error: "Unknown food" });
+  res.json(food);
 });
 
 // foods a parent has restricted for this student - the list the parent app's

@@ -31,7 +31,13 @@ function Switch({ on, onClick, label }) {
 // granted, real alerts fired from Dashboard.jsx show up as real OS
 // notifications. This is a real LOCAL notification on this device, not the
 // Firebase-to-parent's-phone push pipeline (still a disclosed, separate gap).
-export default function SettingsPanel({ student, theme, onToggleTheme, onLogout }) {
+const LANGUAGES = [
+  { code: "en", label: "English" },
+  { code: "ta", label: "தமிழ்" },
+  { code: "si", label: "සිංහල" },
+];
+
+export default function SettingsPanel({ student, theme, onToggleTheme, onLogout, lang, onLangChange }) {
   const [webcamEnabled, setWebcamEnabled] = useState(!isWebcamDisabledByUser());
   const [webcamHint, setWebcamHint] = useState(
     "Your browser controls the real permission — this just reflects it here."
@@ -142,6 +148,30 @@ export default function SettingsPanel({ student, theme, onToggleTheme, onLogout 
           </div>
           <Switch on={remindersEnabled} onClick={handleRemindersToggle} label="Toggle notifications and reminders" />
         </div>
+
+        {lang && onLangChange && (
+          <div className="settings-row">
+            <div className="settings-row-left">
+              <span className="settings-row-icon">🌐</span>
+              <div>
+                <div className="settings-row-label">Language</div>
+                <div className="settings-row-hint">Changes every page's text immediately</div>
+              </div>
+            </div>
+            <div className="settings-lang-group" role="group" aria-label="Language">
+              {LANGUAGES.map((l) => (
+                <button
+                  key={l.code}
+                  type="button"
+                  className={"settings-lang-btn" + (lang === l.code ? " active" : "")}
+                  onClick={() => onLangChange(l.code)}
+                >
+                  {l.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         <button className="settings-row settings-row-button" type="button" onClick={onToggleTheme}>
           <div className="settings-row-left">

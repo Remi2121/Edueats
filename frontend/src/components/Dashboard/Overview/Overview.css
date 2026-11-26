@@ -13,49 +13,35 @@
 .student-hero-content {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 20px;
+  gap: 14px;
   flex-wrap: wrap;
 }
-.hero-goal-card {
-  min-width: 200px;
-  flex: 1;
-  max-width: 320px;
+.student-hero-content b { font-size: 0.88rem; color: var(--ink); }
+.student-hero-content p { font-size: 0.78rem; color: var(--ink-soft); margin: 2px 0 0; }
+.welcome-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
   background: var(--surface);
-  border: 1px solid var(--line);
-  border-radius: 14px;
-  padding: 11px 15px;
-}
-.hero-goal-label {
   display: flex;
-  justify-content: space-between;
-  font-size: 0.78rem;
-  color: var(--ink-soft);
-  margin-bottom: 6px;
-  font-weight: 600;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.1rem;
+  flex-shrink: 0;
 }
-.hero-goal-label b { color: var(--accent); font-weight: 800; }
-.hero-goal-bar {
-  height: 7px;
-  border-radius: 999px;
-  background: var(--surface-alt);
-  overflow: hidden;
-}
-.hero-goal-fill {
-  height: 100%;
-  border-radius: 999px;
-  background: linear-gradient(90deg, var(--accent) 0%, var(--accent2) 100%);
-  transition: width 0.4s ease;
-}
-@media (max-width: 600px) {
-  .hero-goal-card { max-width: 100%; min-width: 100%; }
+.welcome-tag {
+  margin-left: auto;
+  color: var(--accent);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
 }
 
 /* Metric row — flat cards (icon badge + value + meta), matching the
    approved student-app reference mockup's .metric-card, not a 3D bento grid. */
 .stat-row {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
   gap: 14px;
   margin-bottom: 18px;
 }

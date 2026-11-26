@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import ThemeToggle from "../ThemeToggle";
 import "./Dashboard.css";
 import Sidebar from "./Sidebar/Sidebar";
-import ActivitySearch from "./ActivitySearch";
 import ClassSessionCard from "./ClassSessionCard/ClassSessionCard";
 import MoodHistoryCard from "./MoodHistoryCard/MoodHistoryCard";
 import MoodSummaryCard from "./MoodHistoryCard/MoodSummaryCard";
@@ -43,6 +42,14 @@ const VIEW_SUBTITLES = {
   progress: "Your effort adds up — look how far you've come.",
   settings: "Make EduEats feel right for you.",
 };
+const VIEW_EYEBROWS = {
+  overview: "YOUR STUDY SPACE",
+  study: "FOCUS MODE",
+  nutrition: "NOURISH YOUR FOCUS",
+  moodfocus: "WELLBEING INSIGHTS",
+  progress: "YOUR CONSISTENCY",
+  settings: "PERSONALISE YOUR SPACE",
+};
 const VIEW_TITLES = {
   overview: "Dashboard",
   study: "Study Session",
@@ -51,15 +58,6 @@ const VIEW_TITLES = {
   progress: "My Progress",
   settings: "Settings",
 };
-const PAGE_LIST = [
-  { id: "overview", label: "Dashboard", keywords: "home overview daily goal quick actions" },
-  { id: "study", label: "Study Session", keywords: "study timer focus camera session pause start" },
-  { id: "nutrition", label: "My Nutrition", keywords: "food nutrition meal log" },
-  { id: "moodfocus", label: "Mood & Focus", keywords: "mood happy sad focus trends subject" },
-  { id: "progress", label: "My Progress", keywords: "progress weekly monthly subject performance" },
-  { id: "settings", label: "Settings", keywords: "settings profile theme preferences webcam notifications" },
-];
-
 const SEED_TIMELINE = [
   { moodName: "Neutral", when: "Mon 9:05 AM" }, { moodName: "Happy", when: "Mon 1:40 PM" },
   { moodName: "Sad", when: "Tue 8:55 AM" }, { moodName: "Neutral", when: "Tue 12:15 PM" },
@@ -163,6 +161,7 @@ export default function Dashboard({ student, onLogout, theme, onToggleTheme }) {
               mood: toMood(a.mood),
               subject: a.subject,
               time: formatHistoryTimestamp(a.sent_at),
+              sentAt: a.sent_at,
               foods: a.foods || [],
             }))
           );
@@ -304,7 +303,10 @@ export default function Dashboard({ student, onLogout, theme, onToggleTheme }) {
       refreshFocusAndStudyTime();
 
       if (winningEntry.mood.concerning) {
-        setAlerts((prev) => [{ mood: winningEntry.mood, subject: session.subject, time: now, foods: winningEntry.foods }, ...prev]);
+        setAlerts((prev) => [
+          { mood: winningEntry.mood, subject: session.subject, time: now, sentAt: new Date().toISOString(), foods: winningEntry.foods },
+          ...prev,
+        ]);
         const foodList = winningEntry.foods.slice(0, 3).join(", ");
         notify(
           "EduEats — Mood Alert",
@@ -403,39 +405,18 @@ export default function Dashboard({ student, onLogout, theme, onToggleTheme }) {
 
   return (
     <div className="app-shell">
-      <Sidebar activeView={activeView} onNavigate={setActiveView} onLogout={onLogout} lang={lang} />
+      <Sidebar activeView={activeView} onNavigate={setActiveView} onLogout={onLogout} lang={lang} student={student} />
       <main className="main">
         <div className="topbar">
-          <div>
-            <p className="eyebrow">STUDENT PORTAL / {VIEW_TITLES[activeView].toUpperCase()}</p>
-            <h1 className="heading-font">{VIEW_TITLES[activeView]}</h1>
+          <div className="breadcrumb">
+            <span>EduEats</span>
+            <span className="breadcrumb-arrow" aria-hidden="true">›</span>
+            <b>{VIEW_TITLES[activeView]}</b>
           </div>
           <div className="topbar-right">
-            <div className="lang-switcher-pill" role="group" aria-label="Language">
-              <button
-                type="button"
-                className={`lang-pill-btn ${lang === "en" ? "active" : ""}`}
-                onClick={() => handleLangChange("en")}
-              >
-                English
-              </button>
-              <button
-                type="button"
-                className={`lang-pill-btn ${lang === "ta" ? "active" : ""}`}
-                onClick={() => handleLangChange("ta")}
-              >
-                தமிழ்
-              </button>
-              <button
-                type="button"
-                className={`lang-pill-btn ${lang === "si" ? "active" : ""}`}
-                onClick={() => handleLangChange("si")}
-              >
-                සිංහල
-              </button>
-            </div>
-            <ThemeToggle theme={theme} onToggle={onToggleTheme} onDashboard />
-            <ActivitySearch pages={PAGE_LIST} onNavigate={setActiveView} />
+            <span className="date-chip">
+              📅 {new Date().toLocaleDateString("en-US", { weekday: "long", day: "numeric", month: "long" })}
+            </span>
             <button
               className="bell-btn"
               type="button"
@@ -445,44 +426,41 @@ export default function Dashboard({ student, onLogout, theme, onToggleTheme }) {
               🔔
               {alerts.length > 0 && <span className="bell-dot" />}
             </button>
-            <div className="topbar-user">
-              <div className="topbar-avatar">
-                {student.photoDataUrl ? <img src={student.photoDataUrl} alt="" /> : initials(student.name)}
-              </div>
-              <div>
-                <div className="topbar-user-name">{student.name.split(" ")[0]}</div>
-                <div className="topbar-user-class">{student.classLine.split(" · ")[0]}</div>
-              </div>
+            <ThemeToggle theme={theme} onToggle={onToggleTheme} onDashboard />
+            <div className="topbar-avatar">
+              {student.photoDataUrl ? <img src={student.photoDataUrl} alt="" /> : initials(student.name)}
             </div>
           </div>
         </div>
 
         <div className="page-intro">
-          <p className="date">
-            {activeView === "overview" ? `Hi, ${student.name.split(" ")[0]}! 👋 ${VIEW_SUBTITLES.overview}` : VIEW_SUBTITLES[activeView]}
-          </p>
-          {activeView === "overview" && <span className="pill">🌱 Your student space</span>}
+          <div>
+            <p className="eyebrow">{VIEW_EYEBROWS[activeView]}</p>
+            <h1 className="heading-font">
+              {activeView === "overview" ? `Hi, ${student.name.split(" ")[0]}! 👋` : VIEW_TITLES[activeView]}
+            </h1>
+            <p className="date">{VIEW_SUBTITLES[activeView]}</p>
+          </div>
         </div>
 
         {activeView === "overview" && (
           <>
             <div className="student-hero-banner">
               <div className="student-hero-content">
-                <div className="hero-goal-card">
-                  <div className="hero-goal-label">
-                    <span>Daily Study Target</span>
-                    <b>{Math.min(100, Math.round((studyMinutes / 60) * 100))}%</b>
-                  </div>
-                  <div className="hero-goal-bar">
-                    <div
-                      className="hero-goal-fill"
-                      style={{ width: `${Math.min(100, Math.round((studyMinutes / 60) * 100))}%` }}
-                    />
-                  </div>
+                <span className="welcome-icon" aria-hidden="true">🌱</span>
+                <div>
+                  <b>Make space for a healthy study break.</b>
+                  <p>Your mood check-ins and food suggestions are ready whenever you are.</p>
                 </div>
+                <span className="welcome-tag">TODAY'S PLAN</span>
               </div>
             </div>
-            <StatRow latestMood={latestMood} studyMinutes={studyMinutes} nutritionOnTrack={!latestMood.concerning} />
+            <StatRow
+              latestMood={latestMood}
+              studyMinutes={studyMinutes}
+              focusAvg={subjects.length ? Math.round(subjects.reduce((sum, s) => sum + s.score, 0) / subjects.length) : null}
+              foodCount={snacks.length}
+            />
             <div className="overview-row">
               <RecommendationCard snacks={snacks} onNavigate={setActiveView} lang={lang} />
               <div className="overview-col">
@@ -538,7 +516,14 @@ export default function Dashboard({ student, onLogout, theme, onToggleTheme }) {
           )}
 
           {activeView === "settings" && (
-            <SettingsPanel student={student} theme={theme} onToggleTheme={onToggleTheme} onLogout={onLogout} />
+            <SettingsPanel
+              student={student}
+              theme={theme}
+              onToggleTheme={onToggleTheme}
+              onLogout={onLogout}
+              lang={lang}
+              onLangChange={handleLangChange}
+            />
           )}
         </section>
       </main>

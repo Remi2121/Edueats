@@ -6,7 +6,7 @@
   display: flex;
   flex-direction: column;
   padding: 24px 16px 20px;
-  gap: 8px;
+  gap: 4px;
   height: 100vh;
   max-height: 100vh;
   border-right: 1px solid var(--line);
@@ -30,6 +30,8 @@
     overflow-x: auto;
   }
   .sidebar-brand { flex-shrink: 0; padding: 0 !important; }
+  .profile-mini { display: none; }
+  .nav-group { margin: 0 !important; }
   .sidebar .nav { flex-direction: row !important; flex: 1; gap: 6px !important; }
   .sidebar-bottom { display: none; }
 }
@@ -38,7 +40,7 @@
   display: flex;
   align-items: center;
   gap: 11px;
-  padding: 0 6px 24px;
+  padding: 0 6px 20px;
   flex-shrink: 0;
 }
 .sidebar-brand-logo {
@@ -73,6 +75,37 @@
   margin-top: 2px;
 }
 
+/* Profile mini card — matches the sample's avatar + name + account-type row */
+.profile-mini {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 11px 12px;
+  background: var(--surface-alt);
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  margin-bottom: 20px;
+}
+.profile-mini-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  background: var(--accent-light);
+  color: var(--accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 0.78rem;
+  flex-shrink: 0;
+  overflow: hidden;
+}
+.profile-mini-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.profile-mini-copy { flex: 1; min-width: 0; }
+.profile-mini-copy b { display: block; font-size: 0.82rem; color: var(--ink); }
+.profile-mini-copy small { display: block; font-size: 0.68rem; color: var(--ink-soft); margin-top: 2px; }
+
+.nav-group { margin-bottom: 14px; }
 .nav-caption {
   font-size: 0.6rem;
   letter-spacing: 0.1em;
@@ -133,19 +166,19 @@
   padding-top: 12px;
   flex-shrink: 0;
 }
-.growth-note {
-  border: 1px solid var(--line);
+
+/* Privacy note — matches the sample's "Privacy first" footer card */
+.privacy-mini {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 13px;
   background: var(--accent-light);
-  padding: 12px 13px;
   border-radius: 13px;
+  color: var(--accent);
 }
-.growth-note b { font-size: 0.74rem; font-weight: 800; color: var(--accent); }
-.growth-note p {
-  font-size: 0.65rem;
-  line-height: 1.4;
-  color: var(--ink-soft);
-  margin: 4px 0 0;
-}
+.privacy-mini b { display: block; font-size: 0.74rem; font-weight: 800; }
+.privacy-mini small { display: block; font-size: 0.65rem; color: var(--ink-soft); margin-top: 2px; }
 
 .logout-btn {
   width: 100%;
@@ -164,6 +197,15 @@
 }
 .logout-btn:hover { background: #FEF2F2; }
 .logout-btn span { margin-right: 8px; font-size: 1rem; }
+
+.sidebar-foot {
+  border-top: 1px solid var(--line);
+  padding: 13px 8px 0;
+  font-size: 0.68rem;
+  color: var(--ink-soft);
+  display: flex;
+  justify-content: space-between;
+}
 
 @media (max-width: 600px) {
   .sidebar { padding: 10px 14px; gap: 6px; }

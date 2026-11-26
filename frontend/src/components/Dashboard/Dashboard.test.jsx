@@ -97,7 +97,7 @@ describe("Dashboard (integration)", () => {
 
   it("shows the overview summary, not the full cards", () => {
     render(<Dashboard student={student} onLogout={() => {}} />);
-    expect(screen.getByText("Current Mood")).toBeInTheDocument();
+    expect(screen.getByText("Current mood")).toBeInTheDocument();
     expect(screen.getByText("Today's Food Inspiration")).toBeInTheDocument();
     expect(screen.getByText("Quick Actions")).toBeInTheDocument();
     expect(screen.getByText("Study's Summary")).toBeInTheDocument();
@@ -148,6 +148,7 @@ describe("Dashboard (integration)", () => {
 
     await userEvent.type(screen.getByLabelText(/subject/i), "Mathematics");
     await userEvent.click(screen.getByText("Start Study Session"));
+    await userEvent.click(screen.getByText("No — just this app"));
 
     expect(fetch).toHaveBeenCalledWith(
       "http://localhost:3000/api/sessions",
@@ -161,6 +162,7 @@ describe("Dashboard (integration)", () => {
     await goToStudySession();
 
     await userEvent.click(screen.getByText("Start Study Session"));
+    await userEvent.click(screen.getByText("No — just this app"));
     await screen.findByLabelText("Stop Session");
     await userEvent.click(screen.getByLabelText("Stop Session"));
 
@@ -176,6 +178,7 @@ describe("Dashboard (integration)", () => {
     await goToStudySession();
 
     await userEvent.click(screen.getByText("Start Study Session"));
+    await userEvent.click(screen.getByText("No — just this app"));
 
     expect(fetch).not.toHaveBeenCalled();
   });
@@ -191,6 +194,7 @@ describe("Dashboard (integration)", () => {
       render(<Dashboard student={guestStudent} onLogout={() => {}} />);
       await user.click(screen.getByText("Study Session"));
       await user.click(screen.getByText("Start Study Session"));
+      await user.click(screen.getByText("No — just this app"));
 
       // Check-in fires automatically once the camera is ready, on the real
       // 15-minute interval — advance straight to the first tick.
@@ -221,6 +225,7 @@ describe("Dashboard (integration)", () => {
       render(<Dashboard student={student} onLogout={() => {}} />);
       await user.click(screen.getByText("Study Session"));
       await user.click(screen.getByText("Start Study Session")); // defaults subject to Mathematics
+      await user.click(screen.getByText("No — just this app"));
 
       await act(() => vi.advanceTimersByTimeAsync(0));
       await act(() => vi.advanceTimersByTimeAsync(15 * 60 * 1000)); // reading 1
@@ -231,7 +236,7 @@ describe("Dashboard (integration)", () => {
       expect(screen.getByText("Apple slices")).toBeInTheDocument();
 
       await user.click(screen.getByText("Mood & Focus"));
-      expect(screen.getByText("No alerts sent yet today.")).toBeInTheDocument();
+      expect(screen.getByText("No alerts sent in this period.")).toBeInTheDocument();
     } finally {
       vi.useRealTimers();
     }
@@ -254,6 +259,7 @@ describe("Dashboard (integration)", () => {
       render(<Dashboard student={student} onLogout={() => {}} />);
       await user.click(screen.getByText("Study Session"));
       await user.click(screen.getByText("Start Study Session"));
+      await user.click(screen.getByText("No — just this app"));
 
       await act(() => vi.advanceTimersByTimeAsync(0));
       await act(() => vi.advanceTimersByTimeAsync(15 * 60 * 1000));
@@ -285,6 +291,7 @@ describe("Dashboard (integration)", () => {
       render(<Dashboard student={student} onLogout={() => {}} />);
       await user.click(screen.getByText("Study Session"));
       await user.click(screen.getByText("Start Study Session"));
+      await user.click(screen.getByText("No — just this app"));
 
       await act(() => vi.advanceTimersByTimeAsync(0));
       await act(() => vi.advanceTimersByTimeAsync(15 * 60 * 1000)); // reading 1 only

@@ -27,7 +27,7 @@ export const TRANSLATIONS = {
     // Brand
     brandName: "EduEats",
     brandTagline: "Student Nutrition & Focus",
-    navHeader: "Student Workspace",
+    navHeader: "Student Space",
 
     // Nav Items
     navDashboard: "Dashboard",

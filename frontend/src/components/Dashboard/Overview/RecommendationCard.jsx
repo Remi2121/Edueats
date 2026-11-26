@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { foodImageUrl } from "../../../data/foodImages";
 import { getFoodPrice, getFoodTranslations, getFoodBadge, getFoodBenefit, loadFoodCatalog } from "../../../data/foodMetadata";
 import { t } from "../../../data/i18n";
-import MoodToNutrientFlow from "../shared/MoodToNutrientFlow";
 import "./Overview.css";
 
 // This card is a compact snapshot, not a full list — a mood with no
@@ -11,7 +10,7 @@ import "./Overview.css";
 // is still available on the My Nutrition page.
 const SNAPSHOT_FOOD_COUNT = 4;
 
-export default function RecommendationCard({ snacks, onNavigate, currentMood, lang = "en" }) {
+export default function RecommendationCard({ snacks, onNavigate, lang = "en" }) {
   // The real catalog (Tamil/Sinhala names + LKR prices for all 93 foods)
   // loads once from the backend - re-render once it's ready so foods
   // outside the 17 hand-written entries above show their real name/price
@@ -89,9 +88,6 @@ export default function RecommendationCard({ snacks, onNavigate, currentMood, la
           );
         })}
       </div>
-
-      {/* Real AI → Rule Engine → USDA Dataset Flowchart */}
-      <MoodToNutrientFlow currentMood={currentMood} currentFoods={snacks} lang={lang} />
 
       {onNavigate && (
         <button className="text-link" type="button" onClick={() => onNavigate("nutrition")} style={{ marginTop: "14px" }}>

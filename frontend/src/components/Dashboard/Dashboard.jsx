@@ -484,7 +484,7 @@ export default function Dashboard({ student, onLogout, theme, onToggleTheme }) {
             </div>
             <StatRow latestMood={latestMood} studyMinutes={studyMinutes} nutritionOnTrack={!latestMood.concerning} />
             <div className="overview-row">
-              <RecommendationCard currentMood={latestMood} snacks={snacks} onNavigate={setActiveView} lang={lang} />
+              <RecommendationCard snacks={snacks} onNavigate={setActiveView} lang={lang} />
               <div className="overview-col">
                 <QuickActionsCard onNavigate={setActiveView} />
                 <StudySummaryCard latestMood={latestMood} nutritionOnTrack={!latestMood.concerning} studyMinutes={studyMinutes} />

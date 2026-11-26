@@ -72,17 +72,6 @@ export const TRANSLATIONS = {
     startStudy: "Start Study Session",
     logFood: "Log What You Ate",
     studySummaryHeading: "Study's Summary",
-
-    // Flowchart
-    pipelineTag: "🧠 AI → Rule Engine → Database Pipeline",
-    pipelineLive: "● Live Logic Flow",
-    stage1Title: "Stage 1 · CNN Model",
-    stage1Sub: "Valence",
-    stage1Caption: "Detected via FER-2013 facial expression CNN",
-    stage2Title: "Stage 2 · Rule Engine",
-    stage3Title: "Stage 3 · USDA Dataset Match",
-    stage3Caption: "Filtered from 93 USDA food records",
-    demoTesterLabel: "Interactive Demo Tester:",
   },
 
   ta: {
@@ -134,17 +123,6 @@ export const TRANSLATIONS = {
     startStudy: "படிப்பு நேரத்தைத் தொடங்கு",
     logFood: "உணவை பதிவு செய்",
     studySummaryHeading: "படிப்புச் சுருக்கம்",
-
-    // Flowchart
-    pipelineTag: "🧠 AI → விதி இயந்திரம் → தரவுத்தள இணைப்பு",
-    pipelineLive: "● நேரலை தர்க்க ஓட்டம்",
-    stage1Title: "படி 1 · CNN மாடல்",
-    stage1Sub: "உணர்ச்சி நிலை",
-    stage1Caption: "FER-2013 முகம் வழி கண்டறியப்பட்டது",
-    stage2Title: "படி 2 · விதி இயந்திரம்",
-    stage3Title: "படி 3 · USDA உணவுத் தரவு",
-    stage3Caption: "93 USDA உணவுகளில் இருந்து வடிகட்டப்பட்டது",
-    demoTesterLabel: "நேரலை மாதிரி பரிசோதனை:",
   },
 
   si: {
@@ -196,17 +174,6 @@ export const TRANSLATIONS = {
     startStudy: "අධ්‍යයන සැසිය අරඹන්න",
     logFood: "ආහාර සටහන් කරන්න",
     studySummaryHeading: "අධ්‍යයන සාරාංශය",
-
-    // Flowchart
-    pipelineTag: "🧠 AI → නීති එන්ජිම → දත්ත සමුදාය",
-    pipelineLive: "● සජීවී ක්‍රියාකාරීත්වය",
-    stage1Title: "අදියර 1 · CNN මාදිලිය",
-    stage1Sub: "මනෝභාවය",
-    stage1Caption: "FER-2013 මගින් හඳුනාගත් මුහුණේ ඉරියව්",
-    stage2Title: "අදියර 2 · නීති එන්ජිම",
-    stage3Title: "අදියර 3 · USDA ආහාර දත්ත",
-    stage3Caption: "USDA ආහාර 93ක් අතරින් තෝරා ගන්නා ලදී",
-    demoTesterLabel: "සජීවී ආදර්ශ පරීක්ෂාව:",
   },
 };
 

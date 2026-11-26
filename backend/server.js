@@ -566,7 +566,11 @@ app.get("/api/students/:id/focus", async (req, res) => {
 
 // real per-day minutes studied over the last 7 (or 30, with ?range=month)
 // days, for the Study Time Trend chart — same real elapsed-time calculation
-// (and same abandoned-session cap) as /sessions/today
+// (and same abandoned-session cap) as /sessions/today. Always returns one
+// entry per real calendar day in the range, even days with zero study time -
+// the SQL below only returns rows for days that actually have a session, so
+// a student who skipped a day would otherwise see that day silently missing
+// from the chart entirely instead of showing as a real zero.
 app.get("/api/students/:id/sessions/week", async (req, res) => {
   const days = req.query.range === "month" ? 29 : 6;
   const [rows] = await pool.query(
@@ -577,7 +581,19 @@ app.get("/api/students/:id/sessions/week", async (req, res) => {
      GROUP BY DATE(started_at)`,
     [req.params.id, days]
   );
-  res.json(rows.map((r) => ({ day: r.day, minutes: Number(r.minutes) })));
+  const minutesByDay = {};
+  rows.forEach((r) => {
+    minutesByDay[localDateStr(new Date(r.day))] = Number(r.minutes);
+  });
+
+  const result = [];
+  for (let i = days; i >= 0; i--) {
+    const d = new Date();
+    d.setDate(d.getDate() - i);
+    const key = localDateStr(d);
+    result.push({ day: key, minutes: minutesByDay[key] || 0 });
+  }
+  res.json(result);
 });
 
 // every real food name the rule engine knows about, for the My Food Log picker

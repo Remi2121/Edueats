@@ -27,6 +27,12 @@ export const api = {
   parentSignup: (email, password, student_email) =>
     request("/api/parent/signup", { method: "POST", body: JSON.stringify({ email, password, student_email }) }),
 
+  googleParentAuth: (credential) =>
+    request("/api/auth/google/parent", { method: "POST", body: JSON.stringify({ credential }) }),
+
+  googleParentLink: (credential, student_email) =>
+    request("/api/auth/google/parent/link", { method: "POST", body: JSON.stringify({ credential, student_email }) }),
+
   getChild: (parentId) => request(`/api/parent/${parentId}/child`),
 
   getAlerts: (parentId) => request(`/api/parent/${parentId}/alerts`),

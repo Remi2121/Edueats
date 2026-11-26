@@ -88,11 +88,13 @@ CREATE TABLE IF NOT EXISTS food_log (
     FOREIGN KEY (student_id) REFERENCES students(id)
 );
 
--- one row per parent account, linked to the one student they follow
+-- one row per parent account, linked to the one student they follow.
+-- password_hash is NULL for a Google-only parent account (same pattern as
+-- students.password_hash).
 CREATE TABLE IF NOT EXISTS parents (
     id INT AUTO_INCREMENT PRIMARY KEY,
     email VARCHAR(150) UNIQUE NOT NULL,
-    password_hash VARCHAR(255) NOT NULL,
+    password_hash VARCHAR(255),
     student_id INT NOT NULL,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (student_id) REFERENCES students(id)

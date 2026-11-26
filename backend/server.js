@@ -227,12 +227,83 @@ app.post("/api/parent/login", async (req, res) => {
     [email]
   );
   const parent = rows[0];
-  const passwordMatches = parent && (await bcrypt.compare(password, parent.password_hash));
+  const passwordMatches =
+    parent && parent.password_hash && (await bcrypt.compare(password, parent.password_hash));
   if (!passwordMatches) {
     return res.status(401).json({ error: "Incorrect email or password" });
   }
   const { password_hash, ...parentInfo } = parent;
   res.json(parentInfo);
+});
+
+// verifies a real Google ID token for a parent sign-in. A parent account
+// only exists once it's linked to a student (same rule as email/password
+// signup), so a first-time Google sign-in comes back with needsLink: true
+// instead of creating an account on the spot.
+app.post("/api/auth/google/parent", async (req, res) => {
+  const { credential } = req.body;
+  let payload;
+  try {
+    const ticket = await googleClient.verifyIdToken({
+      idToken: credential,
+      audience: process.env.GOOGLE_CLIENT_ID,
+    });
+    payload = ticket.getPayload();
+  } catch {
+    return res.status(401).json({ error: "Invalid Google sign-in." });
+  }
+
+  try {
+    const [rows] = await pool.query(
+      "SELECT id, email, student_id FROM parents WHERE email = ?",
+      [payload.email]
+    );
+    if (rows[0]) {
+      return res.json({ needsLink: false, ...rows[0] });
+    }
+    res.json({ needsLink: true, email: payload.email, name: payload.name });
+  } catch (err) {
+    console.error("Google parent auth DB error:", err.code || err.message);
+    if (err.code === "ECONNREFUSED") {
+      return res.status(503).json({ error: "MySQL service is stopped. Please start MySQL95 in Windows Services." });
+    }
+    res.status(500).json({ error: "Database error: " + (err.message || "Unknown error") });
+  }
+});
+
+// finishes a first-time Google parent sign-in by linking to the child's
+// existing student account - re-verifies the credential rather than
+// trusting the email the client already showed the user.
+app.post("/api/auth/google/parent/link", async (req, res) => {
+  const { credential, student_email } = req.body;
+  let payload;
+  try {
+    const ticket = await googleClient.verifyIdToken({
+      idToken: credential,
+      audience: process.env.GOOGLE_CLIENT_ID,
+    });
+    payload = ticket.getPayload();
+  } catch {
+    return res.status(401).json({ error: "Invalid Google sign-in." });
+  }
+
+  const [studentRows] = await pool.query("SELECT id FROM students WHERE email = ?", [student_email]);
+  if (!studentRows[0]) {
+    return res.status(404).json({ error: "No student account found with that email" });
+  }
+  try {
+    const [result] = await pool.query(
+      "INSERT INTO parents (email, password_hash, student_id) VALUES (?, NULL, ?)",
+      [payload.email, studentRows[0].id]
+    );
+    res.json({ needsLink: false, id: result.insertId, email: payload.email, student_id: studentRows[0].id });
+  } catch (err) {
+    if (err.code === "ER_DUP_ENTRY") {
+      res.status(409).json({ error: "A parent account with this email already exists" });
+    } else {
+      throw err;
+    }
+  }
 });
 
 // the student a parent account is linked to, for the parent app's dashboard header

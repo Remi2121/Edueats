@@ -20,6 +20,10 @@ node_modules/
 npm-debug.log*
 backend/uploads/
 backend/photos/
+backend/logs/
+
+# Expo
+.expo/
 
 # Secrets / config
 .env

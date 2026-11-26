@@ -1,57 +1,222 @@
-.sidebar{
-  background:linear-gradient(160deg, #075344, #032E2A 82%);
-  color:#fff;
-  display:flex; flex-direction:column; padding:25px 17px; gap:10px;
+/* Full-Height Claymorphic Green Sidebar - Fixed Viewport Size */
+.sidebar {
+  background: linear-gradient(175deg, #075244 0%, #04362E 55%, #021F1A 100%);
+  color: #fff;
+  display: flex;
+  flex-direction: column;
+  padding: 22px 16px 20px;
+  gap: 8px;
+  height: 100vh;
+  max-height: 100vh;
+  box-shadow: 4px 0 24px rgba(0, 0, 0, 0.22);
+  border-right: 1px solid rgba(255, 255, 255, 0.1);
+  box-sizing: border-box;
+  position: sticky;
+  top: 0;
+  overflow-y: auto;
+  z-index: 20;
+  align-self: start;
+  flex-shrink: 0;
 }
-@media (max-width:900px){
-  .sidebar{ flex-direction:row; align-items:center; padding:12px 16px; gap:14px; overflow-x:auto; }
-  .sidebar-brand{ flex-shrink:0; }
-  .sidebar .nav{ flex-direction:row !important; flex:1; }
-  .sidebar-bottom{ display:none; }
+@media (max-width: 900px) {
+  .sidebar {
+    position: static;
+    height: auto;
+    max-height: none;
+    flex-direction: row;
+    align-items: center;
+    padding: 14px 16px;
+    gap: 12px;
+    overflow-x: auto;
+  }
+  .sidebar-brand { flex-shrink: 0; padding: 0 !important; }
+  .sidebar .nav { flex-direction: row !important; flex: 1; gap: 6px !important; }
+  .sidebar-bottom { display: none; }
 }
-.sidebar-brand{ display:flex; align-items:center; gap:11px; padding:0 8px 24px; }
-.sidebar-brand-logo{
-  width:50px; height:50px; border-radius:16px; background:#fff; flex-shrink:0;
-  display:flex; align-items:center; justify-content:center; padding:5px; overflow:hidden;
-}
-.sidebar-brand-logo img{ width:100%; height:100%; object-fit:contain; }
-.sidebar-brand .brand-name{ color:#fff; font-size:1.25rem; font-weight:800; letter-spacing:-0.03em; display:block; }
-.sidebar-brand .brand-name span{ color:#8DF0B2; }
-.sidebar-brand .brand-tagline{ display:block; color:#A9D9C4; font-size:0.56rem; letter-spacing:0.05em; text-transform:uppercase; margin-top:3px; }
 
-.nav-caption{ font-size:0.56rem; letter-spacing:0.12em; text-transform:uppercase; color:#80B6A0; font-weight:800; padding:0 13px 10px; }
-@media (max-width:900px){ .nav-caption{ display:none; } }
-
-.sidebar .nav{ display:flex; flex-direction:column; gap:7px; }
-.nav-link{
-  display:flex; align-items:center; gap:12px; width:100%; text-align:left;
-  border:none; background:none; color:#C7E6D8; font-family:inherit;
-  font-size:0.84rem; font-weight:700; padding:13px 13px; border-radius:14px; cursor:pointer; white-space:nowrap;
+/* Clay 3D Brand Logo Tile */
+.sidebar-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 6px 12px;
+  flex-shrink: 0;
 }
-.nav-icon{ font-size:1.15rem; width:22px; text-align:center; flex-shrink:0; }
-.nav-link:hover{ background:rgba(255,255,255,0.09); color:#fff; }
-.nav-link.active{ background:linear-gradient(100deg, #C9FFDC, #8DF0B2); color:#064E3B; box-shadow:0 8px 22px rgba(0,30,23,0.25); }
-.nav-link:focus-visible{ outline:2px solid #8DF0B2; outline-offset:1px; }
-
-.sidebar-bottom{ margin-top:auto; display:flex; flex-direction:column; gap:12px; }
-.growth-note{
-  border:1px solid rgba(255,255,255,0.12); background:rgba(255,255,255,0.05);
-  padding:15px; border-radius:17px;
+.sidebar-brand-logo {
+  width: 44px;
+  height: 44px;
+  border-radius: 16px;
+  background: #FFFFFF;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px;
+  overflow: hidden;
+  box-shadow:
+    inset -2px -2px 5px rgba(0, 0, 0, 0.08),
+    inset 2px 2px 5px rgba(255, 255, 255, 0.95),
+    0 6px 16px rgba(0, 0, 0, 0.25);
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
-.growth-note b{ font-size:0.76rem; }
-.growth-note p{ font-size:0.64rem; line-height:1.5; color:#A8D2C0; margin:7px 0 0; }
-.logout-btn{
-  width:100%; padding:12px 14px; border-radius:13px; border:1px solid rgba(255,182,182,0.25);
-  background:rgba(255,255,255,0.04); color:#FFE0E0; font-weight:700; font-size:0.82rem;
-  text-align:left; cursor:pointer; font-family:inherit;
+.sidebar-brand-logo:hover { transform: scale(1.06); }
+.sidebar-brand-logo img { width: 100%; height: 100%; object-fit: contain; }
+.sidebar-brand .brand-name {
+  color: #FFFFFF;
+  font-size: 1.25rem;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  display: block;
 }
-.logout-btn:hover{ background:rgba(255,255,255,0.09); }
-.logout-btn span{ margin-right:8px; font-size:1.05rem; }
+.sidebar-brand .brand-name span { color: #86EFAC; }
+.sidebar-brand .brand-tagline {
+  display: block;
+  color: #98D2B9;
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  margin-top: 2px;
+}
 
-@media (max-width:600px){
-  .sidebar{ padding:10px 16px; gap:6px; }
-  .sidebar-brand{ padding-bottom:0; }
-  .sidebar .brand-name{ font-size:0.92rem; }
-  .sidebar-brand-logo{ width:38px; height:38px; border-radius:11px; }
-  .nav-link{ font-size:0.78rem; padding:8px 9px; gap:6px; }
+.nav-caption {
+  font-size: 0.6rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #72A992;
+  font-weight: 800;
+  padding: 2px 14px 6px;
+}
+@media (max-width: 900px) { .nav-caption { display: none; } }
+
+.sidebar .nav {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+/* Claymorphic 3D Nav Link Buttons */
+.nav-link {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  text-align: left;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  background: rgba(255, 255, 255, 0.05);
+  color: #CDE8DC;
+  font-family: inherit;
+  font-size: 0.86rem;
+  font-weight: 700;
+  padding: 10px 14px;
+  border-radius: 16px;
+  cursor: pointer;
+  white-space: nowrap;
+  box-shadow:
+    inset -2px -2px 5px rgba(0, 0, 0, 0.28),
+    inset 2px 2px 5px rgba(255, 255, 255, 0.08),
+    0 3px 8px rgba(0, 0, 0, 0.1);
+  transition: all 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.nav-icon {
+  font-size: 1.15rem;
+  width: 22px;
+  text-align: center;
+  flex-shrink: 0;
+  transition: transform 0.2s ease;
+}
+.nav-link:hover {
+  background: rgba(255, 255, 255, 0.12);
+  color: #FFFFFF;
+  transform: translateY(-2px) scale(1.02);
+  border-color: rgba(255, 255, 255, 0.18);
+  box-shadow:
+    inset -2px -2px 6px rgba(0, 0, 0, 0.25),
+    inset 2px 2px 6px rgba(255, 255, 255, 0.16),
+    0 6px 16px rgba(0, 0, 0, 0.2);
+}
+.nav-link:hover .nav-icon { transform: scale(1.15); }
+.nav-link:active {
+  transform: translateY(1px) scale(0.98);
+}
+
+/* 3D Inflated Mint Clay Active State */
+.nav-link.active {
+  background: linear-gradient(145deg, #A7F3D0 0%, #6EE7B7 100%);
+  color: #064E3B;
+  border-color: rgba(255, 255, 255, 0.5);
+  box-shadow:
+    inset -3px -3px 6px rgba(5, 122, 85, 0.35),
+    inset 3px 3px 6px rgba(255, 255, 255, 0.75),
+    0 8px 20px -3px rgba(6, 78, 59, 0.45);
+  transform: translateY(-1px) scale(1.02);
+}
+.nav-link.active .nav-icon { transform: scale(1.12); }
+.nav-link:focus-visible { outline: 3px solid #86EFAC; outline-offset: 2px; }
+
+/* Bottom Section Enclosed Firmly Inside Sidebar */
+.sidebar-bottom {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 10px;
+  flex-shrink: 0;
+}
+.growth-note {
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.07);
+  backdrop-filter: blur(12px);
+  padding: 11px 13px;
+  border-radius: 16px;
+  box-shadow:
+    inset -2px -2px 6px rgba(0, 0, 0, 0.28),
+    inset 2px 2px 6px rgba(255, 255, 255, 0.09),
+    0 6px 14px rgba(0, 0, 0, 0.14);
+}
+.growth-note b { font-size: 0.76rem; font-weight: 800; color: #FFFFFF; }
+.growth-note p {
+  font-size: 0.66rem;
+  line-height: 1.4;
+  color: #A3D4C0;
+  margin: 4px 0 0;
+}
+
+/* 3D Tactile Clay Logout Button */
+.logout-btn {
+  width: 100%;
+  padding: 10px 14px;
+  border-radius: 14px;
+  border: 1px solid rgba(254, 202, 202, 0.28);
+  background: rgba(239, 68, 68, 0.12);
+  color: #FECACA;
+  font-weight: 700;
+  font-size: 0.82rem;
+  text-align: left;
+  cursor: pointer;
+  font-family: inherit;
+  flex-shrink: 0;
+  box-shadow:
+    inset -2px -2px 5px rgba(0, 0, 0, 0.25),
+    inset 2px 2px 5px rgba(255, 255, 255, 0.08);
+  transition: all 0.22s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+.logout-btn:hover {
+  background: rgba(239, 68, 68, 0.25);
+  color: #FFFFFF;
+  border-color: rgba(239, 68, 68, 0.5);
+  transform: translateY(-2px);
+  box-shadow:
+    inset -2px -2px 6px rgba(0, 0, 0, 0.3),
+    inset 2px 2px 6px rgba(255, 255, 255, 0.18),
+    0 6px 14px rgba(239, 68, 68, 0.25);
+}
+.logout-btn span { margin-right: 8px; font-size: 1rem; }
+
+@media (max-width: 600px) {
+  .sidebar { padding: 10px 14px; gap: 6px; }
+  .sidebar-brand .brand-name { font-size: 0.96rem; }
+  .sidebar-brand-logo { width: 36px; height: 36px; border-radius: 12px; }
+  .nav-link { font-size: 0.78rem; padding: 8px 12px; gap: 6px; border-radius: 14px; }
 }

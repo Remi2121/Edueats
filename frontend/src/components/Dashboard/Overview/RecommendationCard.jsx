@@ -1,4 +1,8 @@
+import { useEffect, useState } from "react";
 import { foodImageUrl } from "../../../data/foodImages";
+import { getFoodPrice, getFoodTranslations, getFoodBadge, getFoodBenefit, loadFoodCatalog } from "../../../data/foodMetadata";
+import { t } from "../../../data/i18n";
+import MoodToNutrientFlow from "../shared/MoodToNutrientFlow";
 import "./Overview.css";
 
 // This card is a compact snapshot, not a full list — a mood with no
@@ -7,24 +11,37 @@ import "./Overview.css";
 // is still available on the My Nutrition page.
 const SNAPSHOT_FOOD_COUNT = 4;
 
-export default function RecommendationCard({ snacks, onNavigate }) {
+export default function RecommendationCard({ snacks, onNavigate, currentMood, lang = "en" }) {
+  // The real catalog (Tamil/Sinhala names + LKR prices for all 93 foods)
+  // loads once from the backend - re-render once it's ready so foods
+  // outside the 17 hand-written entries above show their real name/price
+  // instead of nothing.
+  const [, setCatalogReady] = useState(false);
+  useEffect(() => {
+    loadFoodCatalog().then(() => setCatalogReady(true));
+  }, []);
+
   const top = snacks.slice(0, SNAPSHOT_FOOD_COUNT);
   return (
     <div className="dash-card recommendation-card">
       <div className="card-head">
         <div>
-          <h2 className="heading-font">Today's Food Inspiration</h2>
-          <p className="section-label" style={{ margin: 0 }}>Fuel your focus with the right food</p>
+          <h2 className="heading-font">{t("inspirationHeading", lang)}</h2>
+          <p className="section-label" style={{ margin: 0 }}>{t("inspirationSub", lang)}</p>
         </div>
-        <span className="pill">✨ Recommended</span>
+        <span className="pill">{t("recommendedPill", lang)}</span>
       </div>
+
       <div className="food-banner">
         <div>
           <strong>{top.join(" + ") || "Check in to get a suggestion"}</strong>
-          <p>Matched to your current mood by the real rule engine.</p>
+          <p>{t("matchedRuleSub", lang)}</p>
           <div className="recommendation-tags">
-            <span className="recommendation-tag">💡 Boosts concentration</span>
-            <span className="recommendation-tag">⚡ Reduces tiredness</span>
+            <span className="recommendation-tag">{t("boostConcentration", lang)}</span>
+            <span className="recommendation-tag">{t("reducesTiredness", lang)}</span>
+            <span className="recommendation-tag" style={{ background: "rgba(16, 185, 129, 0.12)", borderColor: "rgba(16, 185, 129, 0.3)" }}>
+              🏷️ {t("canteenBadge", lang)}
+            </span>
           </div>
         </div>
         <div className="recommendation-foods">
@@ -37,9 +54,48 @@ export default function RecommendationCard({ snacks, onNavigate }) {
           ))}
         </div>
       </div>
+
+      {/* Modern Trilingual & Canteen Pricing Cards Grid */}
+      <div className="modern-food-grid">
+        {top.map((food) => {
+          const trans = getFoodTranslations(food);
+          const price = getFoodPrice(food);
+          const badge = getFoodBadge(food);
+          const benefit = getFoodBenefit(food, lang);
+          const displayName = lang === "ta" ? trans.ta : (lang === "si" ? trans.si : trans.en);
+          const subtitle = lang === "en"
+            ? `${trans.ta} • ${trans.si}`
+            : (lang === "ta" ? `${trans.en} • ${trans.si}` : `${trans.en} • ${trans.ta}`);
+
+          return (
+            <div key={food} className="modern-food-card">
+              <div>
+                <div className="modern-food-top">
+                  <div className="modern-food-img-wrap">
+                    {foodImageUrl(food) ? (
+                      <img className="modern-food-thumb" src={foodImageUrl(food)} alt={food} loading="lazy" />
+                    ) : (
+                      <span style={{ fontSize: "1.4rem" }}>🍽️</span>
+                    )}
+                  </div>
+                  <span className="modern-food-price">{price != null ? `Rs. ${price}` : "—"}</span>
+                </div>
+                <div className="modern-food-name">{displayName}</div>
+                <div className="modern-food-trilingual">{subtitle}</div>
+                <div className="modern-food-benefit">{benefit}</div>
+              </div>
+              <span className="modern-food-badge">{badge}</span>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Real AI → Rule Engine → USDA Dataset Flowchart */}
+      <MoodToNutrientFlow currentMood={currentMood} currentFoods={snacks} lang={lang} />
+
       {onNavigate && (
-        <button className="text-link" type="button" onClick={() => onNavigate("nutrition")}>
-          Explore nutrition →
+        <button className="text-link" type="button" onClick={() => onNavigate("nutrition")} style={{ marginTop: "14px" }}>
+          {t("exploreNutrition", lang)}
         </button>
       )}
     </div>

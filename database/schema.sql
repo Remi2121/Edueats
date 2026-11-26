@@ -52,6 +52,7 @@ CREATE TABLE IF NOT EXISTS alerts (
     id INT AUTO_INCREMENT PRIMARY KEY,
     mood_id INT NOT NULL,
     sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    read_at TIMESTAMP NULL DEFAULT NULL,
     FOREIGN KEY (mood_id) REFERENCES moods(id)
 );
 
@@ -73,6 +74,7 @@ CREATE TABLE IF NOT EXISTS posture_alerts (
     id INT AUTO_INCREMENT PRIMARY KEY,
     posture_check_id INT NOT NULL,
     sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    read_at TIMESTAMP NULL DEFAULT NULL,
     FOREIGN KEY (posture_check_id) REFERENCES posture_checks(id)
 );
 
@@ -84,4 +86,24 @@ CREATE TABLE IF NOT EXISTS food_log (
     food_name VARCHAR(100) NOT NULL,
     logged_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (student_id) REFERENCES students(id)
+);
+
+-- one row per parent account, linked to the one student they follow
+CREATE TABLE IF NOT EXISTS parents (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    email VARCHAR(150) UNIQUE NOT NULL,
+    password_hash VARCHAR(255) NOT NULL,
+    student_id INT NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (student_id) REFERENCES students(id)
+);
+
+-- foods a parent has marked their child must not receive as a recommendation
+CREATE TABLE IF NOT EXISTS food_restrictions (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    student_id INT NOT NULL,
+    food_name VARCHAR(100) NOT NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (student_id) REFERENCES students(id),
+    UNIQUE KEY unique_restriction (student_id, food_name)
 );

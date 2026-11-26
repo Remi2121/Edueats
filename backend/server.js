@@ -40,6 +40,24 @@ const ML_ROOT = path.join(__dirname, "..");
 // `concerning` flags in frontend/src/data/moods.js
 const CONCERNING_MOODS = new Set(["sad", "angry", "fear", "disgust"]);
 
+// Every real check-in writes its own log file, one folder per student, so
+// the full frontend -> backend -> ML -> database -> frontend pipeline for
+// any single check-in can be read back afterward from disk instead of being
+// shown live in the UI.
+const LOGS_DIR = path.join(__dirname, "logs");
+
+function startCheckinLog(studentId) {
+  const studentDir = path.join(LOGS_DIR, `student_${studentId}`);
+  fs.mkdirSync(studentDir, { recursive: true });
+  const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+  const logFile = path.join(studentDir, `checkin_${stamp}.log`);
+  const logStep = (message) => {
+    const line = `[${new Date().toISOString()}] ${message}\n`;
+    fs.appendFileSync(logFile, line);
+  };
+  return { logFile, logStep };
+}
+
 // Loads the real per-food nutrient values (same CSV the rule engine reads)
 // once at startup, keyed by food name, so the frontend's nutrition detail
 // view can show real numbers instead of inventing any.
@@ -52,7 +70,8 @@ fs.readFileSync(NUTRITION_CSV_PATH, "utf8")
   .forEach((line) => {
     // food names can contain a comma inside quotes, e.g. "Barley, cooked"
     const cells = line.match(/(".*?"|[^,]+)(?=,|$)/g).map((c) => c.replace(/^"|"$/g, ""));
-    const [food_name, calories, fat_g, sugar_g, water_ml, magnesium_mg, vitamin_b_mg] = cells;
+    const [food_name, calories, fat_g, sugar_g, water_ml, magnesium_mg, vitamin_b_mg,
+      tamil_name, sinhala_name, price_lkr] = cells;
     foodNutrients[food_name] = {
       food_name,
       calories: Number(calories),
@@ -61,6 +80,9 @@ fs.readFileSync(NUTRITION_CSV_PATH, "utf8")
       water_ml: Number(water_ml),
       magnesium_mg: Number(magnesium_mg),
       vitamin_b_mg: Number(vitamin_b_mg),
+      tamil_name,
+      sinhala_name,
+      price_lkr: Number(price_lkr),
     };
   });
 
@@ -110,20 +132,28 @@ app.post("/api/signup", async (req, res) => {
 // checks email + password against the stored hash and logs the student in
 app.post("/api/login", async (req, res) => {
   const { email, password } = req.body;
-  const [rows] = await pool.query(
-    "SELECT id, name, email, password_hash, grade, room_no, photo_path FROM students WHERE email = ?",
-    [email]
-  );
-  const student = rows[0];
-  // Google-only accounts have no password_hash at all — they must sign in
-  // with the Google button, not this form.
-  const passwordMatches =
-    student && student.password_hash && (await bcrypt.compare(password, student.password_hash));
-  if (!passwordMatches) {
-    return res.status(401).json({ error: "Incorrect email or password" });
+  try {
+    const [rows] = await pool.query(
+      "SELECT id, name, email, password_hash, grade, room_no, photo_path FROM students WHERE email = ?",
+      [email]
+    );
+    const student = rows[0];
+    // Google-only accounts have no password_hash at all — they must sign in
+    // with the Google button, not this form.
+    const passwordMatches =
+      student && student.password_hash && (await bcrypt.compare(password, student.password_hash));
+    if (!passwordMatches) {
+      return res.status(401).json({ error: "Incorrect email or password" });
+    }
+    const { password_hash, ...studentInfo } = student;
+    res.json(studentInfo);
+  } catch (err) {
+    console.error("Login DB error:", err.code || err.message);
+    if (err.code === "ECONNREFUSED") {
+      return res.status(503).json({ error: "MySQL service is stopped. Please start MySQL95 in Windows Services." });
+    }
+    res.status(500).json({ error: "Database error: " + (err.message || "Unknown error") });
   }
-  const { password_hash, ...studentInfo } = student;
-  res.json(studentInfo);
 });
 
 // verifies a real Google ID token, then finds or creates the matching student
@@ -140,19 +170,116 @@ app.post("/api/auth/google", async (req, res) => {
     return res.status(401).json({ error: "Invalid Google sign-in." });
   }
 
-  const [existing] = await pool.query(
-    "SELECT id, name, email, grade, room_no, photo_path FROM students WHERE email = ?",
-    [payload.email]
-  );
-  if (existing[0]) {
-    return res.json(existing[0]);
-  }
+  try {
+    const [existing] = await pool.query(
+      "SELECT id, name, email, grade, room_no, photo_path FROM students WHERE email = ?",
+      [payload.email]
+    );
+    if (existing[0]) {
+      return res.json(existing[0]);
+    }
 
-  const [result] = await pool.query(
-    "INSERT INTO students (name, email) VALUES (?, ?)",
-    [payload.name, payload.email]
+    const [result] = await pool.query(
+      "INSERT INTO students (name, email) VALUES (?, ?)",
+      [payload.name, payload.email]
+    );
+    res.json({ id: result.insertId, name: payload.name, email: payload.email, grade: null, room_no: null });
+  } catch (err) {
+    console.error("Google Auth DB error:", err.code || err.message);
+    if (err.code === "ECONNREFUSED") {
+      return res.status(503).json({ error: "MySQL service is stopped. Please start MySQL95 in Windows Services." });
+    }
+    res.status(500).json({ error: "Database error: " + (err.message || "Unknown error") });
+  }
+});
+
+// creates a parent account, linked to one existing student by that
+// student's email (the parent must already know which student account they
+// follow - there's no open signup that lets a parent attach to any student)
+app.post("/api/parent/signup", async (req, res) => {
+  const { email, password, student_email } = req.body;
+  const [studentRows] = await pool.query("SELECT id FROM students WHERE email = ?", [student_email]);
+  if (!studentRows[0]) {
+    return res.status(404).json({ error: "No student account found with that email" });
+  }
+  const password_hash = await bcrypt.hash(password, 10);
+  try {
+    const [result] = await pool.query(
+      "INSERT INTO parents (email, password_hash, student_id) VALUES (?, ?, ?)",
+      [email, password_hash, studentRows[0].id]
+    );
+    res.json({ id: result.insertId, email, student_id: studentRows[0].id });
+  } catch (err) {
+    if (err.code === "ER_DUP_ENTRY") {
+      res.status(409).json({ error: "A parent account with this email already exists" });
+    } else {
+      throw err;
+    }
+  }
+});
+
+// checks a parent's email + password against the stored hash
+app.post("/api/parent/login", async (req, res) => {
+  const { email, password } = req.body;
+  const [rows] = await pool.query(
+    "SELECT id, email, password_hash, student_id FROM parents WHERE email = ?",
+    [email]
   );
-  res.json({ id: result.insertId, name: payload.name, email: payload.email, grade: null, room_no: null });
+  const parent = rows[0];
+  const passwordMatches = parent && (await bcrypt.compare(password, parent.password_hash));
+  if (!passwordMatches) {
+    return res.status(401).json({ error: "Incorrect email or password" });
+  }
+  const { password_hash, ...parentInfo } = parent;
+  res.json(parentInfo);
+});
+
+// the student a parent account is linked to, for the parent app's dashboard header
+app.get("/api/parent/:id/child", async (req, res) => {
+  const [rows] = await pool.query(
+    `SELECT s.id, s.name, s.grade, s.room_no, s.photo_path
+     FROM parents p JOIN students s ON p.student_id = s.id
+     WHERE p.id = ?`,
+    [req.params.id]
+  );
+  if (!rows[0]) return res.status(404).json({ error: "Parent account not found" });
+  res.json(rows[0]);
+});
+
+// real mood alerts + real posture alerts for a parent's linked student,
+// merged into one list newest-first - this is the parent app's only alert
+// delivery mechanism (in-app), there is no SMS or push notification
+app.get("/api/parent/:id/alerts", async (req, res) => {
+  const [parentRows] = await pool.query("SELECT student_id FROM parents WHERE id = ?", [req.params.id]);
+  if (!parentRows[0]) return res.status(404).json({ error: "Parent account not found" });
+  const student_id = parentRows[0].student_id;
+
+  const [moodAlerts] = await pool.query(
+    `SELECT a.id, 'mood' AS type, a.sent_at, (a.read_at IS NOT NULL) AS is_read, m.mood, s.subject
+     FROM alerts a
+     JOIN moods m ON a.mood_id = m.id
+     LEFT JOIN sessions s ON m.session_id = s.id
+     WHERE m.student_id = ?`,
+    [student_id]
+  );
+  const [postureAlerts] = await pool.query(
+    `SELECT pa.id, 'posture' AS type, pa.sent_at, (pa.read_at IS NOT NULL) AS is_read, s.subject
+     FROM posture_alerts pa
+     JOIN posture_checks pc ON pa.posture_check_id = pc.id
+     LEFT JOIN sessions s ON pc.session_id = s.id
+     WHERE pc.student_id = ?`,
+    [student_id]
+  );
+  const merged = [...moodAlerts, ...postureAlerts].sort((a, b) => new Date(b.sent_at) - new Date(a.sent_at));
+  res.json(merged);
+});
+
+// marks one parent alert as read - ?type=mood (default) or ?type=posture,
+// since mood alerts and posture alerts live in two different tables
+app.patch("/api/parent/alerts/:id/read", async (req, res) => {
+  const table = req.query.type === "posture" ? "posture_alerts" : "alerts";
+  await pool.query(`UPDATE ${table} SET read_at = NOW() WHERE id = ?`, [req.params.id]);
+  res.json({ id: Number(req.params.id), read: true });
 });
 
 // fills in grade/room for a student created via Google sign-in (profile step)
@@ -404,10 +531,13 @@ app.patch("/api/sessions/:id/end", async (req, res) => {
 });
 
 // real minutes studied today — sums each session's actual elapsed time
-// (started_at to ended_at, or to now if it's still running), not a guess
+// (started_at to ended_at, or to now if it's still running). An abandoned
+// session (tab closed without clicking Stop) never gets an ended_at, so its
+// "still running" time is capped at the student's own chosen duration_min
+// instead of growing forever every time this runs.
 app.get("/api/students/:id/sessions/today", async (req, res) => {
   const [rows] = await pool.query(
-    `SELECT subject, TIMESTAMPDIFF(MINUTE, started_at, COALESCE(ended_at, NOW())) AS minutes
+    `SELECT subject, LEAST(TIMESTAMPDIFF(MINUTE, started_at, COALESCE(ended_at, NOW())), duration_min) AS minutes
      FROM sessions WHERE student_id = ? AND DATE(started_at) = CURDATE()`,
     [req.params.id]
   );
@@ -436,12 +566,12 @@ app.get("/api/students/:id/focus", async (req, res) => {
 
 // real per-day minutes studied over the last 7 (or 30, with ?range=month)
 // days, for the Study Time Trend chart — same real elapsed-time calculation
-// as /sessions/today
+// (and same abandoned-session cap) as /sessions/today
 app.get("/api/students/:id/sessions/week", async (req, res) => {
   const days = req.query.range === "month" ? 29 : 6;
   const [rows] = await pool.query(
     `SELECT DATE(started_at) AS day,
-            SUM(TIMESTAMPDIFF(MINUTE, started_at, COALESCE(ended_at, NOW()))) AS minutes
+            SUM(LEAST(TIMESTAMPDIFF(MINUTE, started_at, COALESCE(ended_at, NOW())), duration_min)) AS minutes
      FROM sessions
      WHERE student_id = ? AND started_at >= DATE_SUB(CURDATE(), INTERVAL ? DAY)
      GROUP BY DATE(started_at)`,
@@ -460,6 +590,43 @@ app.get("/api/foods/:name", (req, res) => {
 // every real food name the rule engine knows about, for the My Food Log picker
 app.get("/api/foods", (req, res) => {
   res.json(Object.keys(foodNutrients));
+});
+
+// the full real food catalog (nutrients + tamil_name/sinhala_name/price_lkr),
+// fetched once by the frontend instead of per-food, so every food display
+// anywhere in the app can use real names/prices instead of a placeholder
+app.get("/api/foods/full", (req, res) => {
+  res.json(Object.values(foodNutrients));
+});
+
+// foods a parent has restricted for this student - the list the parent app's
+// Food Restrictions screen reads and writes
+app.get("/api/students/:id/restrictions", async (req, res) => {
+  const [rows] = await pool.query(
+    "SELECT food_name FROM food_restrictions WHERE student_id = ?",
+    [req.params.id]
+  );
+  res.json(rows.map((r) => r.food_name));
+});
+
+// replaces a student's whole restriction list with the one the parent app
+// sends (the parent app always sends its full current local list, not a
+// single add/remove) - unknown food names are rejected so this table can
+// never drift from the real nutrition dataset
+app.put("/api/students/:id/restrictions", async (req, res) => {
+  const { food_names } = req.body;
+  const unknown = food_names.filter((name) => !foodNutrients[name]);
+  if (unknown.length) {
+    return res.status(400).json({ error: `Unknown food(s): ${unknown.join(", ")}` });
+  }
+  await pool.query("DELETE FROM food_restrictions WHERE student_id = ?", [req.params.id]);
+  for (const food_name of food_names) {
+    await pool.query(
+      "INSERT INTO food_restrictions (student_id, food_name) VALUES (?, ?)",
+      [req.params.id, food_name]
+    );
+  }
+  res.json({ student_id: Number(req.params.id), food_names });
 });
 
 // logs one food a student actually ate (separate from food_recommendations,
@@ -485,12 +652,11 @@ app.get("/api/students/:id/food-log", async (req, res) => {
   res.json(rows);
 });
 
-// runs a check-in photo through the CNN + rule engine, streaming the REAL
-// progress to the frontend as it happens (Server-Sent Events) instead of
-// the caller waiting silently for the whole ~40s round trip. Each line
-// predict.py already logs (face-crop, grayscale, model load, prediction...)
-// gets forwarded live, finishing with a "result" event once the mood and
-// foods are saved to the database.
+// runs a check-in photo through the CNN + rule engine. The real pipeline
+// progress (face-crop, model load, prediction, rule-engine matching, DB
+// save...) is written to a real per-student log file on disk instead of
+// being streamed to the frontend — see startCheckinLog() above. The
+// frontend only sees a "result" (or "error") event once everything is done.
 app.post("/api/checkin", upload.single("photo"), async (req, res) => {
   const { student_id, session_id } = req.body;
   if (!req.file) {
@@ -506,7 +672,9 @@ app.post("/api/checkin", upload.single("photo"), async (req, res) => {
     res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
   };
 
-  sendEvent("stage", { message: "Backend received the photo, starting mood detection" });
+  const { logFile, logStep } = startCheckinLog(student_id);
+  logStep(`Check-in started for student ${student_id} (session ${session_id || "none"})`);
+  logStep("Backend received the photo, starting mood detection");
 
   // "-u" forces Python's stdout to be unbuffered, so each progress line
   // reaches us as soon as it's printed instead of all arriving in one
@@ -527,7 +695,7 @@ app.post("/api/checkin", upload.single("photo"), async (req, res) => {
       } else if (/^\d+\/\d+ /.test(line)) {
         continue; // Keras's own step-progress bar, not a real pipeline stage
       } else {
-        sendEvent("stage", { message: line });
+        logStep(line);
       }
     }
   });
@@ -541,13 +709,37 @@ app.post("/api/checkin", upload.single("photo"), async (req, res) => {
     fs.unlink(req.file.path, () => {}); // clean up the temp upload either way
 
     if (code !== 0 || !resultLine) {
+      logStep(`ERROR: mood detection failed (exit code ${code})`);
+      if (stderrOutput) logStep(`stderr: ${stderrOutput}`);
       console.error(stderrOutput);
-      sendEvent("error", { error: "Mood detection failed" });
+      sendEvent("error", { error: "Mood detection failed", logFile });
       return res.end();
     }
 
-    const { mood, foods } = JSON.parse(resultLine);
-    sendEvent("stage", { message: "ML finished — saving the result to the database" });
+    const { mood, foods: rawFoods } = JSON.parse(resultLine);
+    logStep(`ML finished — detected mood: ${mood}, ${rawFoods.length} foods matched`);
+
+    // Remove anything the parent has restricted before this ever becomes a
+    // saved recommendation - restrictions apply at the point a suggestion is
+    // generated, not just when it's displayed.
+    const [restrictionRows] = await pool.query(
+      "SELECT food_name FROM food_restrictions WHERE student_id = ?",
+      [student_id]
+    );
+    const restricted = new Set(restrictionRows.map((r) => r.food_name));
+    let foods = rawFoods.filter((name) => !restricted.has(name));
+    if (restricted.size) {
+      logStep(`Removed ${rawFoods.length - foods.length} restricted food(s) from the suggestion list`);
+    }
+    // Every mood must still show something - if the parent restricted every
+    // matched food, fall back to any unrestricted food in the dataset rather
+    // than showing an empty list.
+    if (foods.length === 0) {
+      foods = Object.keys(foodNutrients).filter((name) => !restricted.has(name)).slice(0, 3);
+      logStep("All matched foods were restricted - falling back to other unrestricted foods");
+    }
+
+    logStep("Saving the result to the database");
 
     const [moodResult] = await pool.query(
       "INSERT INTO moods (student_id, session_id, mood) VALUES (?, ?, ?)",
@@ -564,10 +756,11 @@ app.post("/api/checkin", upload.single("photo"), async (req, res) => {
 
     if (CONCERNING_MOODS.has(String(mood).toLowerCase())) {
       await pool.query("INSERT INTO alerts (mood_id) VALUES (?)", [mood_id]);
+      logStep("Mood is concerning — parent alert saved");
     }
 
-    sendEvent("stage", { message: "Sending the result back to the app" });
-    sendEvent("result", { mood_id, mood, foods });
+    logStep("Sending the result back to the app");
+    sendEvent("result", { mood_id, mood, foods, logFile });
     res.end();
   });
 });

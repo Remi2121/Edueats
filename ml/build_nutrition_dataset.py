@@ -134,6 +134,109 @@ TARGET_FOODS = [
 ]
 
 
+# Tamil name, Sinhala name, estimated typical Sri Lankan retail price (LKR per common
+# serving/unit - a slice, a piece, 100g, etc., matching how it's actually bought/sold).
+# Translations are a best-effort pass covering common Sri Lankan Tamil/Sinhala usage,
+# including transliteration for foods with no distinct native name (e.g. quinoa, feta).
+# Prices are realistic market estimates, not an official pricing dataset - disclose as
+# estimates in the UI/report, same as nutrient values are disclosed as USDA-sourced facts.
+LOCAL_INFO = {
+    "Watermelon": ("தர்பூசணி", "කොමඩු", 100),
+    "Cantaloupe": ("முலாம்பழம்", "කාන්ටලූප්", 150),
+    "Honeydew melon": ("தேன் முலாம்பழம்", "හනිඩියු මෙලන්", 180),
+    "Orange": ("ஆரஞ்சு", "දොඩම්", 70),
+    "Grapefruit": ("கிரேப்ஃப்ரூட்", "ග්‍රේප්ෆ්රූට්", 200),
+    "Strawberries": ("ஸ்ட்ராபெரி", "ස්ට්‍රෝබෙරි", 350),
+    "Pineapple": ("அன்னாசி", "අන්නාසි", 90),
+    "Peach": ("பீச் பழம்", "පීච් ගෙඩි", 250),
+    "Pear": ("பேரிக்காய்", "පෙයාර්ස්", 200),
+    "Apple": ("ஆப்பிள்", "ඇපල්", 150),
+    "Banana": ("வாழைப்பழம்", "කෙසෙල්", 20),
+    "Grapes": ("திராட்சை", "මිදි", 300),
+    "Kiwifruit": ("கிவி பழம்", "කිවි ගෙඩි", 180),
+    "Mango": ("மாம்பழம்", "අඹ", 100),
+    "Cherries": ("செர்ரி பழம்", "චෙරි", 500),
+    "Blueberries": ("ப்ளூபெர்ரி", "බ්ලූබෙරි", 600),
+    "Raspberries": ("ராஸ்பெர்ரி", "රස්බෙරි", 600),
+    "Papaya": ("பப்பாளி", "පැපොල්", 60),
+    "Coconut water": ("இளநீர்", "කුරුඹ වතුර", 100),
+    "Lettuce": ("லெட்யூஸ்", "ලෙටිස්", 150),
+    "Cabbage": ("முட்டைக்கோஸ்", "ගෝවා", 80),
+    "Celery": ("செலரி", "සෙලරි", 200),
+    "Zucchini": ("சுக்கினி", "සුකිනි", 180),
+    "Cauliflower": ("காலிஃபிளவர்", "මල් ගෝවා", 120),
+    "Broccoli": ("ப்ரோக்கோலி", "බ්‍රොකොලි", 200),
+    "Spinach": ("பசலைக்கீரை", "නිවිති", 60),
+    "Kale": ("கேல் கீரை", "කේල්", 250),
+    "Carrot": ("கேரட்", "කැරට්", 70),
+    "Tomato": ("தக்காளி", "තක්කාලි", 60),
+    "Bell pepper": ("குடைமிளகாய்", "බෙල් පෙපර්", 150),
+    "Cucumber": ("வெள்ளரிக்காய்", "පිපිඤ්ඤා", 50),
+    "Radish": ("முள்ளங்கி", "රාබු", 70),
+    "Asparagus": ("அஸ்பாரகஸ்", "ඇස්පරගස්", 400),
+    "Green beans": ("பீன்ஸ்", "බෝංචි", 90),
+    "Sweet potato": ("சர்க்கரை வள்ளிக்கிழங்கு", "බතල", 50),
+    "Potato": ("உருளைக்கிழங்கு", "අල", 40),
+    "Sweet corn": ("சோளம்", "බඩ ඉරිඟු", 50),
+    "Mushroom": ("காளான்", "හතු", 150),
+    "Onion": ("வெங்காயம்", "ලූනු", 50),
+    "Beet": ("பீட்ரூட்", "බීට්රූට්", 70),
+    "Brussels sprouts": ("பிரசல்ஸ் ஸ்ப்ரவுட்ஸ்", "බ්‍රසල්ස් ස්ප්‍රවුට්ස්", 350),
+    "Collard greens": ("கோலார்ட் கிரீன்ஸ்", "කොලාඩ් ග්‍රීන්ස්", 150),
+    "White rice, cooked": ("வெள்ளை சாதம்", "සුළු සහල් බත්", 20),
+    "Brown rice, cooked": ("சிவப்பு சாதம்", "රතු සහල් බත්", 25),
+    "Oats": ("ஓட்ஸ்", "ඕට්ස්", 150),
+    "Whole wheat bread": ("கோதுமை ரொட்டி", "තිරිඟු පාන්", 100),
+    "White bread": ("வெள்ளை ரொட்டி", "සුළු පාන්", 80),
+    "Pasta, cooked": ("பாஸ்தா", "පැස්ටා", 120),
+    "Quinoa, cooked": ("குயினோவா", "ක්විනෝවා", 400),
+    "Barley, cooked": ("பார்லி", "බාලි", 150),
+    "Whole milk": ("முழு பால்", "සම්පූර්ණ කිරි", 90),
+    "Skim milk": ("கொழுப்பு நீக்கிய பால்", "මේදය ඉවත් කළ කිරි", 100),
+    "Greek yogurt": ("கிரேக்க தயிர்", "ග්‍රීක යෝගට්", 180),
+    "Plain yogurt": ("தயிர்", "යෝගට්", 60),
+    "Cheddar cheese": ("செடார் சீஸ்", "චෙඩර් චීස්", 250),
+    "Mozzarella cheese": ("மொசரெல்லா சீஸ்", "මොසරෙලා චීස්", 300),
+    "Parmesan cheese": ("பார்மேசன் சீஸ்", "පර්මේසන් චීස්", 450),
+    "Feta cheese": ("ஃபேட்டா சீஸ்", "ෆේටා චීස්", 350),
+    "Cottage cheese": ("காட்டேஜ் சீஸ்", "කොටෙජ් චීස්", 300),
+    "Chicken breast, roasted": ("கோழி மார்பகம்", "කුකුල් මස් පපුව", 250),
+    "Chicken thigh, roasted": ("கோழி தொடை", "කුකුල් කලවා මස්", 220),
+    "Turkey breast, roasted": ("வான்கோழி மார்பகம்", "තුර්කිය කුකුළු මස් පපුව", 500),
+    "Lean ground beef, cooked": ("மாட்டிறைச்சி அரைத்தது", "හරක් මස් කැටි", 400),
+    "Pork loin, roasted": ("பன்றி இறைச்சி", "ඌරු මස්", 350),
+    "Salmon, cooked": ("சால்மன் மீன்", "සැමන් මාළු", 600),
+    "Tuna, canned": ("டூனா மீன்", "ටූනා මාළු", 300),
+    "Shrimp, cooked": ("இறால்", "ඉස්සෝ", 400),
+    "Egg, boiled": ("வேகவைத்த முட்டை", "තම්බා බිත්තර", 30),
+    "Tofu": ("டோஃபு", "ටෝෆු", 150),
+    "Almonds": ("பாதாம்", "ආමන්ඩ්", 220),
+    "Walnuts": ("அக்ரூட் பருப்பு", "වෝල්නට්", 350),
+    "Cashews": ("முந்திரி", "කජු", 250),
+    "Peanuts": ("நிலக்கடலை", "රටකජු", 100),
+    "Peanut butter": ("நிலக்கடலை வெண்ணெய்", "රටකජු බටර්", 300),
+    "Sunflower seeds": ("சூரியகாந்தி வித்து", "සූරියකාන්ත ඇට", 200),
+    "Pumpkin seeds": ("பூசணி வித்து", "කුම්බල ඇට", 250),
+    "Chickpeas, cooked": ("கொண்டைக்கடலை", "කඩල", 120),
+    "Black beans, cooked": ("கருப்பு பீன்ஸ்", "කළු බෝංචි", 150),
+    "Lentils, cooked": ("பருப்பு", "පරිප්පු", 80),
+    "Kidney beans, cooked": ("ராஜ்மா", "රතු බෝංචි", 130),
+    "Avocado": ("வெண்ணெய் பழம்", "අලිගැටපේර", 150),
+    "Potato chips": ("உருளைக்கிழங்கு சிப்ஸ்", "අල චිප්ස්", 100),
+    "Popcorn": ("பாப்கார்ன்", "පොප්කෝන්", 80),
+    "Chocolate chip cookies": ("சாக்லேட் சிப் குக்கீ", "චොකලට් චිප් කුකීස්", 150),
+    "Dark chocolate": ("கருப்பு சாக்லேட்", "කළු චොකලට්", 300),
+    "Milk chocolate": ("பால் சாக்லேட்", "කිරි චොකලට්", 200),
+    "Granulated sugar": ("சர்க்கரை", "සීනි", 25),
+    "Ice cream": ("ஐஸ்க்ரீம்", "අයිස්ක්‍රීම්", 150),
+    "Orange juice": ("ஆரஞ்சு சாறு", "දොඩම් ජූස්", 150),
+    "Apple juice": ("ஆப்பிள் சாறு", "ඇපල් ජූස්", 180),
+    "Green tea, brewed": ("பச்சை தேநீர்", "කොළ තේ", 40),
+    "Coffee, brewed": ("காபி", "කෝපි", 60),
+    "Cola": ("கோலா", "කොලා", 100),
+}
+
+
 def load_food_table(directory, wanted_data_type):
     foods = {}
     with open(os.path.join(directory, "food.csv"), newline="", encoding="utf-8") as f:
@@ -199,6 +302,10 @@ def main():
     rows = []
     misses = []
 
+    missing_local_info = [name for name, *_ in TARGET_FOODS if name not in LOCAL_INFO]
+    if missing_local_info:
+        raise ValueError(f"LOCAL_INFO is missing an entry for: {missing_local_info}")
+
     for name, required, preferred, avoid in TARGET_FOODS:
         fdc_id = find_best_match(sr_foods, required, preferred, avoid)
         values, matched_desc = sr_values, sr_foods.get(fdc_id)
@@ -218,11 +325,14 @@ def main():
                     amount = nutrients[nbr]
                     break
             row.append(round(amount, 2) if amount is not None else 0.0)
+        tamil_name, sinhala_name, price_lkr = LOCAL_INFO[name]
+        row.extend([tamil_name, sinhala_name, price_lkr])
         rows.append((row, matched_desc))
 
     with open(OUTPUT_PATH, "w", newline="", encoding="utf-8") as f:
         writer = csv.writer(f)
-        writer.writerow(["food_name", "calories", "fat_g", "sugar_g", "water_ml", "magnesium_mg", "vitamin_b_mg"])
+        writer.writerow(["food_name", "calories", "fat_g", "sugar_g", "water_ml", "magnesium_mg",
+                          "vitamin_b_mg", "tamil_name", "sinhala_name", "price_lkr"])
         for row, _ in rows:
             writer.writerow(row)
 

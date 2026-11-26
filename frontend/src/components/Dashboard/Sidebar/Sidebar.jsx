@@ -1,4 +1,5 @@
 import logo from "../../../assets/logo-cropped.png";
+import { t } from "../../../data/i18n";
 import "./Sidebar.css";
 
 const NAV_ITEMS = [
@@ -10,7 +11,16 @@ const NAV_ITEMS = [
   { view: "settings", label: "Settings", icon: "⚙️" },
 ];
 
-export default function Sidebar({ activeView, onNavigate, onLogout }) {
+const NAV_LOCALIZED = {
+  overview: { en: "Dashboard", ta: "முகப்பு", si: "ප්‍රධාන පිටුව" },
+  study: { en: "Study Session", ta: "படிப்பு நேரம்", si: "අධ්‍යයන සැසිය" },
+  nutrition: { en: "My Nutrition", ta: "என் ஊட்டச்சத்து", si: "මගේ පෝෂණය" },
+  moodfocus: { en: "Mood & Focus", ta: "மனநிலை & கவனம்", si: "මනෝභාවය & අවධානය" },
+  progress: { en: "My Progress", ta: "என் முன்னேற்றம்", si: "මගේ ප්‍රගතිය" },
+  settings: { en: "Settings", ta: "அமைப்புகள்", si: "සැකසුම්" },
+};
+
+export default function Sidebar({ activeView, onNavigate, onLogout, lang = "en" }) {
   return (
     <aside className="sidebar">
       <div className="sidebar-brand">
@@ -21,31 +31,34 @@ export default function Sidebar({ activeView, onNavigate, onLogout }) {
           <strong className="brand-name heading-font">
             Edu<span>Eats</span>
           </strong>
-          <small className="brand-tagline">Student Nutrition &amp; Focus</small>
+          <small className="brand-tagline">{t("brandTagline", lang)}</small>
         </div>
       </div>
-      <div className="nav-caption">Student workspace</div>
+      <div className="nav-caption">{t("navHeader", lang)}</div>
       <nav className="nav">
-        {NAV_ITEMS.map((item) => (
-          <button
-            key={item.view}
-            className={"nav-link" + (activeView === item.view ? " active" : "")}
-            type="button"
-            onClick={() => onNavigate(item.view)}
-          >
-            <span className="nav-icon">{item.icon}</span>
-            {item.label}
-          </button>
-        ))}
+        {NAV_ITEMS.map((item) => {
+          const displayLabel = lang === "en" ? item.label : (NAV_LOCALIZED[item.view]?.[lang] || item.label);
+          return (
+            <button
+              key={item.view}
+              className={"nav-link" + (activeView === item.view ? " active" : "")}
+              type="button"
+              onClick={() => onNavigate(item.view)}
+            >
+              <span className="nav-icon">{item.icon}</span>
+              {displayLabel}
+            </button>
+          );
+        })}
       </nav>
       <div className="sidebar-bottom">
         <div className="growth-note">
-          <b>🌱 Your daily growth</b>
-          <p>Small healthy choices can make every study session better.</p>
+          <b>{t("growthTitle", lang)}</b>
+          <p>{t("growthDesc", lang)}</p>
         </div>
         {onLogout && (
           <button className="logout-btn" type="button" onClick={onLogout}>
-            <span>↪</span> Log out
+            <span>↪</span> {t("logout", lang)}
           </button>
         )}
       </div>

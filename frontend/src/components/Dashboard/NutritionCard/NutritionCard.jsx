@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
 import { formatHistoryTimestamp } from "../../../data/moods";
-import { foodImageUrl } from "../../../data/foodImages";
+import { getFoodTranslations, getFoodPrice, loadFoodCatalog } from "../../../data/foodMetadata";
+import { t } from "../../../data/i18n";
+import FoodItem from "../shared/FoodItem";
 import "./NutritionCard.css";
 
 const API_BASE = "http://localhost:3000";
@@ -58,8 +60,45 @@ function closestEntryTo(entries, hhmm) {
   return [best];
 }
 
-export default function NutritionCard({ hidden, focused, snacks, studentId }) {
+// A handful of real foods read as a messy wall of identical cards once a
+// mood matches more than a few (Neutral/Surprise can match all 93). Giving
+// the first few real visual weight and the rest a plain scannable list
+// keeps every food visible without that wall-of-cards effect.
+function localizedMeta(food, lang) {
+  const trans = getFoodTranslations(food);
+  const price = getFoodPrice(food);
+  const names = lang === "en" ? `${trans.ta} • ${trans.si}` : lang === "ta" ? `${trans.en} • ${trans.si}` : `${trans.en} • ${trans.ta}`;
+  return price != null ? `${names} · ${t("pricePrefix", lang)} ${price}` : names;
+}
+
+function FoodGroup({ foods, selected, onSelect, expandButton, lang = "en" }) {
+  const spotlight = foods.slice(0, 3);
+  const rest = foods.slice(3);
+  return (
+    <>
+      <div className="food-spotlight-row">
+        {spotlight.map((food) => (
+          <FoodItem key={food} name={food} variant="spotlight" selected={selected === food} onClick={() => onSelect(food)} meta={localizedMeta(food, lang)} />
+        ))}
+      </div>
+      {rest.length > 0 && (
+        <div className="food-row-list">
+          {rest.map((food) => (
+            <FoodItem key={food} name={food} variant="row" selected={selected === food} onClick={() => onSelect(food)} meta={localizedMeta(food, lang)} />
+          ))}
+        </div>
+      )}
+      {expandButton}
+    </>
+  );
+}
+
+export default function NutritionCard({ hidden, focused, snacks, studentId, lang = "en" }) {
   const [tab, setTab] = useState("recommended");
+  const [, setCatalogReady] = useState(false);
+  useEffect(() => {
+    loadFoodCatalog().then(() => setCatalogReady(true));
+  }, []);
   const [selected, setSelected] = useState(null);
   const [selectedNutrients, setSelectedNutrients] = useState(null);
   const [loadError, setLoadError] = useState("");
@@ -204,7 +243,7 @@ export default function NutritionCard({ hidden, focused, snacks, studentId }) {
 
       {tab === "details" ? (
         <>
-          <p className="section-label" style={{ marginTop: 14, textTransform: "none", letterSpacing: "normal" }}>
+          <p className="section-label" style={{ marginTop: 14 }}>
             View the nutrition details of every food you have logged.
           </p>
           <input
@@ -224,22 +263,14 @@ export default function NutritionCard({ hidden, focused, snacks, studentId }) {
                 .filter((e) => e.food_name.toLowerCase().includes(detailsQuery.trim().toLowerCase()))
                 .map((entry) => (
                   <li key={entry.id}>
-                    <button
-                      type="button"
-                      className={"food-record" + (selected === entry.food_name ? " selected" : "")}
+                    <FoodItem
+                      name={entry.food_name}
+                      variant="row"
+                      selected={selected === entry.food_name}
                       onClick={() => selectFood(entry.food_name)}
-                    >
-                      {foodImageUrl(entry.food_name) ? (
-                        <img className="food-record-img" src={foodImageUrl(entry.food_name)} alt="" loading="lazy" />
-                      ) : (
-                        <span className="food-record-img food-log-img-fallback">🍽️</span>
-                      )}
-                      <span className="food-record-name">
-                        {entry.food_name}
-                        <small>{formatHistoryTimestamp(entry.logged_at)}</small>
-                      </span>
-                      <span aria-hidden="true">→</span>
-                    </button>
+                      meta={formatHistoryTimestamp(entry.logged_at)}
+                      trailing={<span aria-hidden="true">→</span>}
+                    />
                   </li>
                 ))}
           </ul>
@@ -285,14 +316,12 @@ export default function NutritionCard({ hidden, focused, snacks, studentId }) {
               <li className="food-log-empty">Nothing logged yet — pick a food above and log it.</li>
             )}
             {logHistory && logHistory.map((entry) => (
-              <li key={entry.id} className="food-log-item">
-                {foodImageUrl(entry.food_name) ? (
-                  <img className="food-log-img" src={foodImageUrl(entry.food_name)} alt="" loading="lazy" />
-                ) : (
-                  <span className="food-log-img food-log-img-fallback">🍽️</span>
-                )}
-                <span className="food-log-name">{entry.food_name}</span>
-                <span className="food-log-time mono">{formatHistoryTimestamp(entry.logged_at)}</span>
+              <li key={entry.id}>
+                <FoodItem
+                  name={entry.food_name}
+                  variant="row"
+                  trailing={<span className="food-log-time mono">{formatHistoryTimestamp(entry.logged_at)}</span>}
+                />
               </li>
             ))}
           </ul>
@@ -300,29 +329,13 @@ export default function NutritionCard({ hidden, focused, snacks, studentId }) {
       ) : (
         <>
           {history === null ? (
-            <p className="section-label" style={{ textTransform: "none", letterSpacing: "normal", marginTop: 14 }}>
+            <p className="section-label" style={{ marginTop: 14 }}>
               Loading your real check-in history…
             </p>
           ) : history.length === 0 ? (
             <>
               <p className="section-label" style={{ marginTop: 14 }}>Today's Food Recommendation</p>
-              <div className="food-cards">
-                {snacks.slice(0, MAX_DISPLAYED_FOODS).map((food) => (
-                  <button
-                    key={food}
-                    className={"food-card" + (selected === food ? " selected" : "")}
-                    type="button"
-                    onClick={() => selectFood(food)}
-                  >
-                    {foodImageUrl(food) ? (
-                      <img className="food-card-img" src={foodImageUrl(food)} alt="" loading="lazy" />
-                    ) : (
-                      <span className="food-card-icon">🍽️</span>
-                    )}
-                    <span className="food-card-name">{food}</span>
-                  </button>
-                ))}
-              </div>
+              <FoodGroup foods={snacks.slice(0, MAX_DISPLAYED_FOODS)} selected={selected} onSelect={selectFood} lang={lang} />
             </>
           ) : (
             <>
@@ -353,12 +366,12 @@ export default function NutritionCard({ hidden, focused, snacks, studentId }) {
                 )}
               </div>
               {selectedTime && displayedEntries.length > 0 && (
-                <p className="section-label" style={{ textTransform: "none", letterSpacing: "normal", marginTop: -6, marginBottom: 10 }}>
+                <p className="section-label" style={{ marginTop: -6, marginBottom: 10 }}>
                   Closest real check-in to {selectedTime}: {formatHistoryTimestamp(displayedEntries[0].detected_at)}
                 </p>
               )}
               {displayedEntries.length === 0 ? (
-                <p className="section-label" style={{ textTransform: "none", letterSpacing: "normal", marginTop: 10 }}>
+                <p className="section-label" style={{ marginTop: 10 }}>
                   No check-in on this date.
                 </p>
               ) : (
@@ -385,34 +398,23 @@ export default function NutritionCard({ hidden, focused, snacks, studentId }) {
                   </button>
 
                   {isOpen && (
-                    <>
-                      <div className="food-cards">
-                        {shownFoods.map((food) => (
+                    <FoodGroup
+                      foods={shownFoods}
+                      selected={selected}
+                      onSelect={selectFood}
+                      lang={lang}
+                      expandButton={
+                        entry.foods.length > MAX_DISPLAYED_FOODS && (
                           <button
-                            key={food}
-                            className={"food-card" + (selected === food ? " selected" : "")}
                             type="button"
-                            onClick={() => selectFood(food)}
+                            className="nutrition-history-expand"
+                            onClick={() => toggleExpanded(entry.mood_id)}
                           >
-                            {foodImageUrl(food) ? (
-                              <img className="food-card-img" src={foodImageUrl(food)} alt="" loading="lazy" />
-                            ) : (
-                              <span className="food-card-icon">🍽️</span>
-                            )}
-                            <span className="food-card-name">{food}</span>
+                            {expanded ? "Show fewer" : `+${entry.foods.length - MAX_DISPLAYED_FOODS} more match this mood`}
                           </button>
-                        ))}
-                      </div>
-                      {entry.foods.length > MAX_DISPLAYED_FOODS && (
-                        <button
-                          type="button"
-                          className="nutrition-history-expand"
-                          onClick={() => toggleExpanded(entry.mood_id)}
-                        >
-                          {expanded ? "Show fewer" : `+${entry.foods.length - MAX_DISPLAYED_FOODS} more match this mood`}
-                        </button>
-                      )}
-                    </>
+                        )
+                      }
+                    />
                   )}
                 </div>
                   );

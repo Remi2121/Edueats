@@ -21,6 +21,7 @@ import SubjectMoodTable from "./Progress/SubjectMoodTable";
 import SettingsPanel from "./SettingsPanel/SettingsPanel";
 import { MOODS, formatHistoryTimestamp, initials, timeNow } from "../../data/moods";
 import { notify } from "../../data/preferences";
+import { getSavedLanguage, saveLanguage, t } from "../../data/i18n";
 
 const API_BASE = "http://localhost:3000";
 
@@ -68,6 +69,7 @@ const SEED_TIMELINE = [
 ].map((e) => ({ mood: MOODS.find((m) => m.name === e.moodName), when: e.when }));
 
 export default function Dashboard({ student, onLogout, theme, onToggleTheme }) {
+  const [lang, setLang] = useState(getSavedLanguage);
   const [activeView, setActiveView] = useState("overview");
   // Real per-subject focus % computed server-side from actual mood+session
   // rows — not a locally nudged placeholder. Empty until real data exists.
@@ -88,10 +90,9 @@ export default function Dashboard({ student, onLogout, theme, onToggleTheme }) {
   const [postureAlerts, setPostureAlerts] = useState([]);
   const [pendingPostureBatch, setPendingPostureBatch] = useState([]);
   // Manual "Test Check-In" — a single real check-in revealed immediately
-  // (not folded into the 3-reading batch above), with the real pipeline
-  // progress shown live as it happens.
+  // (not folded into the 3-reading batch above). Its real pipeline progress
+  // is written to a backend log file, not shown live in the UI.
   const [testCheckingIn, setTestCheckingIn] = useState(false);
-  const [pipelineLog, setPipelineLog] = useState([]);
   const [testResult, setTestResult] = useState(null);
   const [testError, setTestError] = useState("");
 
@@ -208,16 +209,17 @@ export default function Dashboard({ student, onLogout, theme, onToggleTheme }) {
     if (session.id) {
       fetch(`${API_BASE}/api/sessions/${session.id}/end`, { method: "PATCH" })
         .then(refreshFocusAndStudyTime)
-        .catch(() => {});
+        .catch(() => { });
     }
     setSession({ subject: null, running: false, id: null });
   }
 
-  // Reads the real-time stream /api/checkin now sends back (Server-Sent
-  // Events) — live "stage" events as the real CNN pipeline runs, then one
-  // final "result" event with the saved mood/foods. onStage is optional —
-  // only the manual Test Check-In button needs to show each stage live.
-  async function readCheckinStream(formData, onStage) {
+  // Reads the real-time stream /api/checkin sends back (Server-Sent
+  // Events) — a final "result" event with the saved mood/foods once the
+  // real CNN + rule-engine pipeline finishes. The pipeline's step-by-step
+  // progress is no longer shown here — it's written to a real per-student
+  // log file on the backend instead (backend/logs/student_<id>/...).
+  async function readCheckinStream(formData) {
     const res = await fetch(`${API_BASE}/api/checkin`, { method: "POST", body: formData });
     if (!res.ok || !res.body) {
       const data = await res.json().catch(() => ({}));
@@ -238,8 +240,7 @@ export default function Dashboard({ student, onLogout, theme, onToggleTheme }) {
         if (!match) continue;
         const [, eventName, dataStr] = match;
         const payload = JSON.parse(dataStr);
-        if (eventName === "stage" && onStage) onStage(payload.message);
-        else if (eventName === "result") result = payload;
+        if (eventName === "result") result = payload;
         else if (eventName === "error") throw new Error(payload.error || "Check-in failed.");
       }
     }
@@ -331,7 +332,6 @@ export default function Dashboard({ student, onLogout, theme, onToggleTheme }) {
     }
 
     setTestCheckingIn(true);
-    setPipelineLog([]);
     setTestResult(null);
     try {
       const formData = new FormData();
@@ -339,9 +339,7 @@ export default function Dashboard({ student, onLogout, theme, onToggleTheme }) {
       formData.append("student_id", student.id);
       if (session.id) formData.append("session_id", session.id);
 
-      const data = await readCheckinStream(formData, (message) => {
-        setPipelineLog((prev) => [...prev, message]);
-      });
+      const data = await readCheckinStream(formData);
 
       const mood = MOODS.find((m) => m.name.toLowerCase() === String(data.mood).toLowerCase()) || MOODS[0];
       const foods = data.foods && data.foods.length ? data.foods : mood.snacks;
@@ -398,9 +396,14 @@ export default function Dashboard({ student, onLogout, theme, onToggleTheme }) {
     }
   }
 
+  function handleLangChange(newLang) {
+    saveLanguage(newLang);
+    setLang(newLang);
+  }
+
   return (
     <div className="app-shell">
-      <Sidebar activeView={activeView} onNavigate={setActiveView} onLogout={onLogout} />
+      <Sidebar activeView={activeView} onNavigate={setActiveView} onLogout={onLogout} lang={lang} />
       <main className="main">
         <div className="topbar">
           <div>
@@ -408,6 +411,29 @@ export default function Dashboard({ student, onLogout, theme, onToggleTheme }) {
             <h1 className="heading-font">{VIEW_TITLES[activeView]}</h1>
           </div>
           <div className="topbar-right">
+            <div className="lang-switcher-pill" role="group" aria-label="Language">
+              <button
+                type="button"
+                className={`lang-pill-btn ${lang === "en" ? "active" : ""}`}
+                onClick={() => handleLangChange("en")}
+              >
+                English
+              </button>
+              <button
+                type="button"
+                className={`lang-pill-btn ${lang === "ta" ? "active" : ""}`}
+                onClick={() => handleLangChange("ta")}
+              >
+                தமிழ்
+              </button>
+              <button
+                type="button"
+                className={`lang-pill-btn ${lang === "si" ? "active" : ""}`}
+                onClick={() => handleLangChange("si")}
+              >
+                සිංහල
+              </button>
+            </div>
             <ThemeToggle theme={theme} onToggle={onToggleTheme} onDashboard />
             <ActivitySearch pages={PAGE_LIST} onNavigate={setActiveView} />
             <button
@@ -440,9 +466,25 @@ export default function Dashboard({ student, onLogout, theme, onToggleTheme }) {
 
         {activeView === "overview" && (
           <>
+            <div className="student-hero-banner">
+              <div className="student-hero-content">
+                <div className="hero-goal-card">
+                  <div className="hero-goal-label">
+                    <span>Daily Study Target</span>
+                    <b>{Math.min(100, Math.round((studyMinutes / 60) * 100))}%</b>
+                  </div>
+                  <div className="hero-goal-bar">
+                    <div
+                      className="hero-goal-fill"
+                      style={{ width: `${Math.min(100, Math.round((studyMinutes / 60) * 100))}%` }}
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
             <StatRow latestMood={latestMood} studyMinutes={studyMinutes} nutritionOnTrack={!latestMood.concerning} />
             <div className="overview-row">
-              <RecommendationCard snacks={snacks} onNavigate={setActiveView} />
+              <RecommendationCard currentMood={latestMood} snacks={snacks} onNavigate={setActiveView} lang={lang} />
               <div className="overview-col">
                 <QuickActionsCard onNavigate={setActiveView} />
                 <StudySummaryCard latestMood={latestMood} nutritionOnTrack={!latestMood.concerning} studyMinutes={studyMinutes} />
@@ -470,12 +512,11 @@ export default function Dashboard({ student, onLogout, theme, onToggleTheme }) {
             batchSize={CHECKIN_BATCH_SIZE}
             onTestCheckIn={handleTestCheckIn}
             testCheckingIn={testCheckingIn}
-            pipelineLog={pipelineLog}
             testResult={testResult}
             testError={testError}
           />
 
-          {activeView === "nutrition" && <NutritionCard focused snacks={snacks} studentId={student.id} />}
+          {activeView === "nutrition" && <NutritionCard focused snacks={snacks} studentId={student.id} lang={lang} />}
 
           {activeView === "moodfocus" && (
             <>

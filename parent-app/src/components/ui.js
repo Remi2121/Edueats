@@ -1,5 +1,10 @@
-import { View, Text, Pressable, StyleSheet } from "react-native";
+import { View, Text, Pressable, StyleSheet, Platform } from "react-native";
 import { GREEN, DARK, SURFACE, LINE, MUTED, SOFT } from "../theme";
+
+// The same sizes that read fine on a real phone screen look tiny once the
+// web build fills a real laptop's full browser width - a bit bigger on web
+// only, native phone sizing is untouched.
+const isWeb = Platform.OS === "web";
 
 export function Button({ title, onPress, outline = false, danger = false, disabled = false }) {
   return (
@@ -83,8 +88,8 @@ const s = StyleSheet.create({
     elevation: 1,
   },
   sectionTitle: { flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 12 },
-  sectionHeading: { fontSize: 14, fontWeight: "800", color: DARK },
-  action: { fontSize: 11, color: GREEN, fontWeight: "800" },
+  sectionHeading: { fontSize: isWeb ? 16 : 14, fontWeight: "800", color: DARK },
+  action: { fontSize: isWeb ? 13 : 11, color: GREEN, fontWeight: "800" },
   stat: {
     width: "48%",
     backgroundColor: SURFACE,
@@ -99,11 +104,11 @@ const s = StyleSheet.create({
     shadowRadius: 8,
     elevation: 1,
   },
-  statEmoji: { fontSize: 20, marginBottom: 6 },
-  statLabel: { fontSize: 10, color: MUTED },
-  statValue: { fontSize: 18, fontWeight: "800", color: DARK, marginTop: 3 },
+  statEmoji: { fontSize: isWeb ? 24 : 20, marginBottom: 6 },
+  statLabel: { fontSize: isWeb ? 12 : 10, color: MUTED },
+  statValue: { fontSize: isWeb ? 21 : 18, fontWeight: "800", color: DARK, marginTop: 3 },
   header: { marginBottom: 16 },
-  eyebrow: { fontSize: 9, letterSpacing: 1.2, color: GREEN, fontWeight: "800" },
-  headerTitle: { fontSize: 21, fontWeight: "800", color: DARK, marginTop: 4 },
-  sub: { fontSize: 11, color: MUTED, marginTop: 4 },
+  eyebrow: { fontSize: isWeb ? 11 : 9, letterSpacing: 1.2, color: GREEN, fontWeight: "800" },
+  headerTitle: { fontSize: isWeb ? 27 : 21, fontWeight: "800", color: DARK, marginTop: 4 },
+  sub: { fontSize: isWeb ? 14 : 11, color: MUTED, marginTop: 4 },
 });

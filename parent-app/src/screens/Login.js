@@ -1,9 +1,10 @@
 import { useState } from "react";
-import { View, Text, TextInput, StyleSheet, ScrollView, SafeAreaView, KeyboardAvoidingView, Platform } from "react-native";
+import { View, Text, TextInput, Image, StyleSheet, ScrollView, SafeAreaView, KeyboardAvoidingView, Platform } from "react-native";
 import { StatusBar } from "expo-status-bar";
 import { api } from "../api";
 import { Button, Card } from "../components/ui";
 import { GREEN, DARK, BG, SOFT, LINE, MUTED, RED } from "../theme";
+import logo from "../../assets/icon.png";
 
 // Real sign-in against the Express/MySQL backend's parents table - no demo
 // bypass, no Firebase. A parent account must already be linked to a
@@ -50,7 +51,7 @@ export default function Login({ onLoggedIn }) {
         <ScrollView contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled">
           <View style={s.hero}>
             <View style={s.logo}>
-              <Text style={{ fontSize: 24 }}>🌿</Text>
+              <Image source={logo} style={s.logoImage} resizeMode="contain" />
             </View>
             <Text style={s.brand}>EduEats</Text>
             <Text style={s.brandSub}>PARENT COMPANION</Text>
@@ -117,7 +118,8 @@ const s = StyleSheet.create({
   page: { flex: 1, backgroundColor: BG },
   scroll: { padding: 20, paddingTop: 40, paddingBottom: 30 },
   hero: { alignItems: "center", marginBottom: 28 },
-  logo: { width: 56, height: 56, borderRadius: 18, backgroundColor: SOFT, alignItems: "center", justifyContent: "center", marginBottom: 12 },
+  logo: { width: 56, height: 56, borderRadius: 18, backgroundColor: SOFT, alignItems: "center", justifyContent: "center", marginBottom: 12, overflow: "hidden" },
+  logoImage: { width: "72%", height: "72%" },
   brand: { fontSize: 24, fontWeight: "800", color: DARK },
   brandSub: { fontSize: 10, letterSpacing: 2, color: GREEN, fontWeight: "800", marginTop: 2 },
   heroTitle: { fontSize: 20, lineHeight: 27, fontWeight: "800", color: DARK, textAlign: "center", marginTop: 16 },

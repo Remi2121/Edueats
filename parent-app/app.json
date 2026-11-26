@@ -5,6 +5,10 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
+    "icon": "./assets/icon.png",
+    "web": {
+      "favicon": "./assets/icon.png"
+    },
     "android": {
       "package": "com.edueats.parent",
       "adaptiveIcon": {

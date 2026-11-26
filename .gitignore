@@ -4,6 +4,8 @@ datasets/
 *.jpeg
 *.png
 !docs/**/*.png
+!frontend/src/assets/*.png
+!parent-app/assets/*.png
 
 # Python
 __pycache__/

@@ -5,13 +5,14 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "userInterfaceStyle": "light",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/icon-square.png",
     "web": {
       "favicon": "./assets/icon.png"
     },
     "android": {
       "package": "com.edueats.parent",
       "adaptiveIcon": {
+        "foregroundImage": "./assets/icon-square.png",
         "backgroundColor": "#E7F8ED"
       }
     },
@@ -26,10 +27,16 @@
       [
         "expo-notifications",
         {
-          "icon": "./assets/icon.png",
+          "icon": "./assets/icon-square.png",
           "color": "#07804F"
         }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "3530ec56-e1d0-4057-903d-64aaf09dd8c0"
+      }
+    },
+    "owner": "remingan"
   }
 }

@@ -11,6 +11,32 @@ const pool = require("./db");
 
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
+// Sends a real push notification (via Expo's push service - Android delivery
+// goes through Firebase Cloud Messaging, iOS through APNs, both handled by
+// Expo so no separate Firebase project is needed) to the parent linked to
+// this student, if that parent has registered a push token. Fails silently -
+// a parent who never granted notification permission, or isn't linked yet,
+// just has no token on file, and the underlying in-app alert is unaffected.
+async function notifyParent(studentId, title, body, data) {
+  try {
+    const [rows] = await pool.query(
+      "SELECT push_token FROM parents WHERE student_id = ? AND push_token IS NOT NULL",
+      [studentId]
+    );
+    await Promise.all(
+      rows.map((r) =>
+        fetch("https://exp.host/--/api/v2/push/send", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Accept: "application/json" },
+          body: JSON.stringify({ to: r.push_token, title, body, data, sound: "default" }),
+        }).catch(() => {})
+      )
+    );
+  } catch {
+    // Push is best-effort - the real in-app alert row is already saved either way.
+  }
+}
+
 const app = express();
 app.use(cors());
 app.use(express.json());
@@ -304,6 +330,15 @@ app.post("/api/auth/google/parent/link", async (req, res) => {
       throw err;
     }
   }
+});
+
+// saves this parent's real Expo push token (sent once notification
+// permission is granted and the token is issued) so future alerts can be
+// pushed to their device even while the app is closed
+app.patch("/api/parent/:id/push-token", async (req, res) => {
+  const { push_token } = req.body;
+  await pool.query("UPDATE parents SET push_token = ? WHERE id = ?", [push_token, req.params.id]);
+  res.json({ ok: true });
 });
 
 // the student a parent account is linked to, for the parent app's dashboard header
@@ -602,6 +637,10 @@ app.post("/api/posture", async (req, res) => {
 app.post("/api/posture/alert", async (req, res) => {
   const { posture_check_id } = req.body;
   await pool.query("INSERT INTO posture_alerts (posture_check_id) VALUES (?)", [posture_check_id]);
+  const [checkRows] = await pool.query("SELECT student_id FROM posture_checks WHERE id = ?", [posture_check_id]);
+  if (checkRows[0]) {
+    notifyParent(checkRows[0].student_id, "EduEats alert", "Poor posture detected", { type: "posture" });
+  }
   res.json({ ok: true });
 });
 
@@ -640,6 +679,15 @@ app.patch("/api/sessions/:id/end", async (req, res) => {
       "INSERT INTO session_alerts (session_id, reason) VALUES (?, 'early_stop')",
       [req.params.id]
     );
+    const [sessionRows] = await pool.query("SELECT student_id, subject FROM sessions WHERE id = ?", [req.params.id]);
+    if (sessionRows[0]) {
+      notifyParent(
+        sessionRows[0].student_id,
+        "EduEats alert",
+        `Stopped studying early${sessionRows[0].subject ? ` — ${sessionRows[0].subject}` : ""}`,
+        { type: "session" }
+      );
+    }
   }
   res.json({ id: Number(req.params.id) });
 });
@@ -902,6 +950,7 @@ app.post("/api/checkin", upload.single("photo"), async (req, res) => {
     if (CONCERNING_MOODS.has(String(mood).toLowerCase())) {
       await pool.query("INSERT INTO alerts (mood_id) VALUES (?)", [mood_id]);
       logStep("Mood is concerning — parent alert saved");
+      notifyParent(student_id, "EduEats alert", `${mood[0].toUpperCase()}${mood.slice(1)} mood detected`, { type: "mood" });
     }
 
     logStep("Sending the result back to the app");

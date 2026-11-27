@@ -6,17 +6,17 @@ import { GREEN, DARK, MINT, MUTED } from "../theme";
 
 const DAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
-// Real per-day minutes (from sessions.started_at/ended_at) and real
-// per-subject focus scores (from the mood/session join) - same source the
-// student web app's Progress page uses, just read-only here.
+// Real per-day minutes (from sessions.started_at/ended_at) - same source the
+// student web app's Progress page uses, just read-only here. Focus-by-
+// subject used to be duplicated on this screen too; it now lives only on
+// the Mood & Focus tab (see MoodFocus.js) to avoid showing the same panel
+// twice, same reasoning as removing the duplicate panel on the student side.
 export default function Progress({ studentId }) {
   const [days, setDays] = useState(null);
-  const [focus, setFocus] = useState(null);
 
   useEffect(() => {
     if (!studentId) return;
     api.getWeekMinutes(studentId).then(setDays).catch(() => setDays([]));
-    api.getFocus(studentId).then(setFocus).catch(() => setFocus([]));
   }, [studentId]);
 
   const totalMinutes = (days || []).reduce((a, d) => a + d.minutes, 0);
@@ -24,7 +24,7 @@ export default function Progress({ studentId }) {
 
   return (
     <ScrollView style={{ flex: 1 }} contentContainerStyle={{ padding: 18, paddingTop: 10, paddingBottom: 30 }}>
-      <Header title="Child progress" sub="A real view of recent study habits and focus." />
+      <Header title="Child progress" sub="A real view of recent study habits." />
 
       <Card>
         <SectionTitle title="Study time this week" />
@@ -48,27 +48,6 @@ export default function Progress({ studentId }) {
           </View>
         )}
       </Card>
-
-      <Card>
-        <SectionTitle title="Focus by subject" />
-        {focus === null ? (
-          <Text style={s.sub}>Loading…</Text>
-        ) : focus.length === 0 ? (
-          <Text style={s.sub}>No subject data yet — appears after a few study sessions.</Text>
-        ) : (
-          focus.map((f) => (
-            <View key={f.subject} style={s.subjectRow}>
-              <View style={{ flexDirection: "row", justifyContent: "space-between", marginBottom: 6 }}>
-                <Text style={s.subjectName}>{f.subject}</Text>
-                <Text style={s.subjectScore}>{f.score}%</Text>
-              </View>
-              <View style={s.track}>
-                <View style={[s.fill, { width: `${f.score}%` }]} />
-              </View>
-            </View>
-          ))
-        )}
-      </Card>
     </ScrollView>
   );
 }
@@ -80,9 +59,4 @@ const s = StyleSheet.create({
   barCol: { alignItems: "center", gap: 6 },
   bar: { width: 18, borderRadius: 7, backgroundColor: MINT },
   barLabel: { fontSize: 9, color: MUTED },
-  subjectRow: { marginBottom: 14 },
-  subjectName: { fontSize: 12, fontWeight: "700", color: DARK },
-  subjectScore: { fontSize: 12, fontWeight: "800", color: GREEN },
-  track: { height: 7, borderRadius: 999, backgroundColor: "#EEF5F0", overflow: "hidden" },
-  fill: { height: "100%", backgroundColor: GREEN, borderRadius: 999 },
 });

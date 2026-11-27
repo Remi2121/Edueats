@@ -22,7 +22,14 @@
       "**/*"
     ],
     "plugins": [
-      "expo-status-bar"
+      "expo-status-bar",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/icon.png",
+          "color": "#07804F"
+        }
+      ]
     ]
   }
 }

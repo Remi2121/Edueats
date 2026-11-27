@@ -64,7 +64,10 @@ export default function Login({ onLoggedIn }) {
 
   // Renders Google's own sign-in button once its script has loaded (web
   // only) - a custom-styled button can't trigger real Google sign-in
-  // reliably, only Google's own widget can.
+  // reliably, only Google's own widget can. The button is a fixed-pixel-
+  // width iframe, not a fluid element, so a ResizeObserver re-renders it
+  // at its container's real current width whenever that changes (window
+  // resize, orientation change, sidebar opening) instead of only once.
   useEffect(() => {
     if (!isWeb || mode !== "login" || googleLinking) return;
     if (!document.querySelector('script[src="https://accounts.google.com/gsi/client"]')) {
@@ -74,28 +77,48 @@ export default function Login({ onLoggedIn }) {
       script.defer = true;
       document.head.appendChild(script);
     }
+
+    let resizeTimer = null;
+
+    function renderAtCurrentWidth() {
+      const el = googleButtonRef.current;
+      if (!el || !el.offsetWidth) return;
+      el.innerHTML = "";
+      window.google.accounts.id.renderButton(el, {
+        theme: "outline",
+        shape: "rectangular",
+        size: "large",
+        width: el.offsetWidth,
+        text: "continue_with",
+      });
+    }
+
+    let observer = null;
     let attempts = 0;
     const id = setInterval(() => {
       attempts += 1;
       if (window.google && googleButtonRef.current) {
+        clearInterval(id);
         window.google.accounts.id.initialize({
           client_id: process.env.EXPO_PUBLIC_GOOGLE_CLIENT_ID,
           callback: (response) => handleGoogleCredential(response.credential),
         });
-        googleButtonRef.current.innerHTML = "";
-        window.google.accounts.id.renderButton(googleButtonRef.current, {
-          theme: "outline",
-          shape: "rectangular",
-          size: "large",
-          width: googleButtonRef.current.offsetWidth || 320,
-          text: "continue_with",
+        renderAtCurrentWidth();
+        observer = new ResizeObserver(() => {
+          clearTimeout(resizeTimer);
+          resizeTimer = setTimeout(renderAtCurrentWidth, 120);
         });
-        clearInterval(id);
+        observer.observe(googleButtonRef.current);
       } else if (attempts > 20) {
         clearInterval(id);
       }
     }, 150);
-    return () => clearInterval(id);
+
+    return () => {
+      clearInterval(id);
+      clearTimeout(resizeTimer);
+      if (observer) observer.disconnect();
+    };
   }, [mode, googleLinking]);
 
   async function handleLogin() {
@@ -129,6 +152,7 @@ export default function Login({ onLoggedIn }) {
       <StatusBar style="dark" />
       <KeyboardAvoidingView behavior={Platform.OS === "ios" ? "padding" : undefined} style={{ flex: 1 }}>
         <ScrollView contentContainerStyle={s.scroll} keyboardShouldPersistTaps="handled">
+          <View style={s.formWrap}>
           <View style={s.hero}>
             <View style={s.logo}>
               <Image source={logo} style={s.logoImage} resizeMode="contain" />
@@ -238,6 +262,7 @@ export default function Login({ onLoggedIn }) {
           </Card>
 
           <Text style={s.footer}>Private parent access · Linked to one student account only</Text>
+          </View>
         </ScrollView>
       </KeyboardAvoidingView>
 
@@ -260,7 +285,8 @@ export default function Login({ onLoggedIn }) {
 
 const s = StyleSheet.create({
   page: { flex: 1, backgroundColor: BG },
-  scroll: { padding: 20, paddingTop: 40, paddingBottom: 30 },
+  scroll: { padding: 20, paddingTop: 40, paddingBottom: 30, alignItems: isWeb ? "center" : "stretch" },
+  formWrap: isWeb ? { width: "100%", maxWidth: 440 } : { width: "100%" },
   hero: { alignItems: "center", marginBottom: 28 },
   logo: { width: 56, height: 56, borderRadius: 18, backgroundColor: SOFT, alignItems: "center", justifyContent: "center", marginBottom: 12, overflow: "hidden" },
   logoImage: { width: "72%", height: "72%" },

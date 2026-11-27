@@ -35,6 +35,9 @@ export const api = {
 
   getChild: (parentId) => request(`/api/parent/${parentId}/child`),
 
+  savePushToken: (parentId, push_token) =>
+    request(`/api/parent/${parentId}/push-token`, { method: "PATCH", body: JSON.stringify({ push_token }) }),
+
   getAlerts: (parentId) => request(`/api/parent/${parentId}/alerts`),
 
   markAlertRead: (alertId, type) => request(`/api/parent/alerts/${alertId}/read?type=${type}`, { method: "PATCH" }),
@@ -45,6 +48,11 @@ export const api = {
     request(`/api/students/${studentId}/restrictions`, { method: "PUT", body: JSON.stringify({ food_names }) }),
 
   getFoodCatalog: () => request("/api/foods/full"),
+
+  getFoodNutrients: (foodName) => request(`/api/foods/${encodeURIComponent(foodName)}`),
+
+  getNutritionHistory: (studentId, limit = 200) =>
+    request(`/api/students/${studentId}/nutrition-history?limit=${limit}`),
 
   getLatestMood: (studentId) => request(`/api/students/${studentId}/moods`),
 

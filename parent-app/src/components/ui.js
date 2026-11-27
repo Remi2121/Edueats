@@ -40,12 +40,13 @@ export function SectionTitle({ title, action, onPress }) {
   );
 }
 
-export function Stat({ label, value, emoji }) {
+export function Stat({ label, value, sub, emoji, style }) {
   return (
-    <View style={s.stat}>
+    <View style={[s.stat, style]}>
       <Text style={s.statEmoji}>{emoji}</Text>
       <Text style={s.statLabel}>{label}</Text>
       <Text style={s.statValue}>{value}</Text>
+      {sub ? <Text style={s.statSub}>{sub}</Text> : null}
     </View>
   );
 }
@@ -107,6 +108,7 @@ const s = StyleSheet.create({
   statEmoji: { fontSize: isWeb ? 24 : 20, marginBottom: 6 },
   statLabel: { fontSize: isWeb ? 12 : 10, color: MUTED },
   statValue: { fontSize: isWeb ? 21 : 18, fontWeight: "800", color: DARK, marginTop: 3 },
+  statSub: { fontSize: isWeb ? 11 : 9, color: GREEN, fontWeight: "700", marginTop: 2 },
   header: { marginBottom: 16 },
   eyebrow: { fontSize: isWeb ? 11 : 9, letterSpacing: 1.2, color: GREEN, fontWeight: "800" },
   headerTitle: { fontSize: isWeb ? 27 : 21, fontWeight: "800", color: DARK, marginTop: 4 },
